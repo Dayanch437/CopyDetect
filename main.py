@@ -7,8 +7,7 @@ async def plagiarism_check(
     original_text: str = Form(None),
     suspect_text: str = Form(None),
     original_file: UploadFile = File(None),
-    suspect_file: UploadFile = File(None)
-):
+    suspect_file: UploadFile = File(None)):
     
     if original_text and suspect_text:
         message = check_authorship(original_text,suspect_text)
@@ -22,4 +21,4 @@ async def plagiarism_check(
         return {"message": message}
     else:
         return {"message": "No valid input provided."}
-
+        
