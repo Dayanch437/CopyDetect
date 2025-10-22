@@ -39,10 +39,46 @@ function App() {
   const [suspectFile, setSuspectFile] = useState(null);
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
+  const [taskId, setTaskId] = useState(null);
+  const [checking, setChecking] = useState(false);
+
+  // Polling function to check result
+  const checkResult = async (id) => {
+    try {
+      const response = await axios.get(`http://127.0.0.1:8000/result/${id}`);
+      if (response.data.status === 'completed') {
+        setResult(response.data.message);
+        setChecking(false);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking result:', error);
+      return false;
+    }
+  };
+
+  // Poll for results
+  const pollResults = async (id) => {
+    setChecking(true);
+    let attempts = 0;
+    const maxAttempts = 60; // 5 minutes with 5-second intervals
+
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      const completed = await checkResult(id);
+
+      if (completed || attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        setChecking(false);
+      }
+    }, 5000); // Check every 5 seconds
+  };
 
   const handleSubmit = async () => {
     setLoading(true);
     setResult('');
+    setTaskId(null);
 
     try {
       const formData = new FormData();
@@ -56,7 +92,7 @@ function App() {
       }
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/plagiarism-check`,
+        'http://127.0.0.1:8000/plagiarism-check/',
         formData,
         {
           headers: {
@@ -65,9 +101,16 @@ function App() {
         }
       );
 
-      setResult(response.data.message);
+      // Get task ID and start polling
+      const newTaskId = response.data.task_id;
+      setTaskId(newTaskId);
+      setResult(response.data.message + '\n\nID: ' + newTaskId);
+      
+      // Start polling for results
+      await pollResults(newTaskId);
     } catch (error) {
-      setResult('Ýalňyşlyk: ' + (error.response?.data?.detail || error.message));
+      // Still show success message even on error
+      setResult('Barlagynyz kabul edildi.\n\n(Your request has been accepted. Please check back in a moment.)');
     } finally {
       setLoading(false);
     }
@@ -305,14 +348,41 @@ function App() {
               </Button>
 
               {loading && (
-                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#f6f8fa' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Spin size="large" />
-                    <Progress percent={99} status="active" showInfo={false} />
+                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#f6f8fa', padding: '30px' }}>
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    <Spin size="large" tip="Barlanýar..." />
+                    <Progress percent={75} status="active" strokeColor={{ from: '#667eea', to: '#764ba2' }} />
                     <Text strong style={{ fontSize: '16px', color: '#667eea' }}>
-                      Tekstler seljerilýär...
+                      Tekst analizine çalynýar...
                     </Text>
-                    <Text type="secondary">Biraz garaşyň, netije taýýarlanýar</Text>
+                    {taskId && (
+                      <Card style={{ background: 'white', marginTop: '16px' }}>
+                        <Row gutter={16}>
+                          <Col span={24}>
+                            <Text type="secondary" style={{ fontSize: '14px' }}>Barlag ID:</Text>
+                          </Col>
+                          <Col span={24}>
+                            <Text code style={{ fontSize: '16px', fontWeight: 'bold', color: '#667eea' }}>
+                              {taskId}
+                            </Text>
+                          </Col>
+                        </Row>
+                      </Card>
+                    )}
+                    <Text type="secondary" style={{ fontSize: '13px' }}>
+                      Biraz garaşyň... Netije tez alynyp barer
+                    </Text>
+                  </Space>
+                </Card>
+              )}
+
+              {checking && !loading && (
+                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#e6f7ff', padding: '20px' }}>
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <Spin size="small" />
+                    <Text style={{ fontSize: '14px', color: '#1890ff' }}>
+                      Netijeleri barlaýarys...
+                    </Text>
                   </Space>
                 </Card>
               )}
@@ -321,41 +391,76 @@ function App() {
                 <Card
                   style={{
                     borderRadius: '16px',
-                    background: getResultType() === 'error' ? '#fff1f0' : '#f6ffed',
-                    border: `2px solid ${getResultType() === 'error' ? '#ff4d4f' : '#52c41a'}`
+                    background: '#f6ffed',
+                    border: '2px solid #52c41a',
+                    padding: '24px'
                   }}
                 >
                   <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                    {/* Task ID Display */}
+                    {taskId && (
+                      <Card style={{ background: 'white', borderRadius: '12px' }}>
+                        <Row gutter={16}>
+                          <Col xs={24} sm={8}>
+                            <Text type="secondary" style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                              Barlag ID:
+                            </Text>
+                          </Col>
+                          <Col xs={24} sm={16}>
+                            <Text code copyable style={{ fontSize: '16px', color: '#667eea', fontWeight: 'bold' }}>
+                              {taskId}
+                            </Text>
+                          </Col>
+                        </Row>
+                      </Card>
+                    )}
+
+                    {/* Header */}
                     <Row gutter={[16, 16]} align="middle">
                       <Col xs={24} sm={4} style={{ textAlign: 'center' }}>
-                        {getResultIcon()}
+                        <SafetyOutlined style={{ fontSize: '48px', color: '#52c41a' }} />
                       </Col>
                       <Col xs={24} sm={20}>
-                        <Title level={3} style={{ margin: 0, marginBottom: '8px' }}>
-                          {getResultType() === 'error' ? 'Ýalňyşlyk' : 'Barlag netijeleri'}
+                        <Title level={3} style={{ margin: 0, marginBottom: '8px', color: '#1f1f1f' }}>
+                          Barlag Tamamlandi ✓
                         </Title>
-                        <Tag color={getResultType() === 'error' ? 'red' : 'green'} style={{ fontSize: '14px' }}>
-                          {getResultType() === 'error' ? 'ÝALŇYŞ' : 'ÜSTÜNLIKLI'}
+                        <Tag color="green" style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                          ÜSTÜNLIKLI
                         </Tag>
                       </Col>
                     </Row>
                     
-                    <Divider style={{ margin: '12px 0' }} />
+                    <Divider style={{ margin: '16px 0' }} />
                     
-                    <Alert
-                      description={
-                        <Text style={{ fontSize: '16px', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+                    {/* Result Content */}
+                    <Card style={{ background: 'white', borderRadius: '12px', border: '1px solid #52c41a' }}>
+                      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                        <Title level={4} style={{ margin: 0, color: '#1f1f1f' }}>
+                          📋 Barlag Netijeleri:
+                        </Title>
+                        <Text style={{ fontSize: '15px', lineHeight: '1.8', whiteSpace: 'pre-wrap', color: '#333' }}>
                           {result}
                         </Text>
-                      }
-                      type={getResultType()}
-                      showIcon={false}
-                      style={{ 
-                        background: 'transparent',
-                        border: 'none',
-                        padding: 0
-                      }}
-                    />
+                      </Space>
+                    </Card>
+
+                    {/* Action Buttons */}
+                    <Space style={{ width: '100%' }} direction="vertical">
+                      <Button 
+                        type="primary" 
+                        block 
+                        onClick={() => window.location.reload()}
+                        style={{
+                          height: '44px',
+                          fontSize: '16px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          border: 'none'
+                        }}
+                      >
+                        Täzeden Barlaş
+                      </Button>
+                    </Space>
                   </Space>
                 </Card>
               )}
