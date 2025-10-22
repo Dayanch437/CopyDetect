@@ -45,7 +45,7 @@ function App() {
   // Polling function to check result
   const checkResult = async (id) => {
     try {
-      const response = await axios.get(`http://127.0.0.1:8000/result/${id}`);
+      const response = await axios.get(`http://72.56.69.214:8001/result/${id}`);
       if (response.data.status === 'completed') {
         setResult(response.data.message);
         setChecking(false);
@@ -92,7 +92,7 @@ function App() {
       }
 
       const response = await axios.post(
-        'http://127.0.0.1:8000/plagiarism-check/',
+        'http://72.56.69.214:8001/plagiarism-check/',
         formData,
         {
           headers: {
