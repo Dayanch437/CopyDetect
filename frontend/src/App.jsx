@@ -56,7 +56,7 @@ function App() {
       }
 
       const response = await axios.post(
-        'http://127.0.0.1:8000/plagiarism-check/',
+        `${import.meta.env.VITE_API_URL}/plagiarism-check`,
         formData,
         {
           headers: {
