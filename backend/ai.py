@@ -46,10 +46,11 @@ def check_authorship(original_text, suspect_text):
     )
 
     # Retry logic for overloaded server with exponential backoff
-    max_retries = 8
+    max_retries = 3
     retry_delays = [3, 7, 15]  # Progressive delays
     
-    models_to_try = ["gemini-2.0-flash-exp", "gemini-1.5-flash-latest", "gemini-pro"]
+    # Use most reliable models
+    models_to_try = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
     
     for model in models_to_try:
         for attempt in range(max_retries):
