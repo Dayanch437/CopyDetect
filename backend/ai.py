@@ -1,3 +1,5 @@
+import asyncio
+
 def check_authorship(original_text, suspect_text):
     from google import genai
     import time
@@ -44,7 +46,7 @@ def check_authorship(original_text, suspect_text):
     )
 
     # Retry logic for overloaded server with exponential backoff
-    max_retries = 3
+    max_retries = 8
     retry_delays = [3, 7, 15]  # Progressive delays
     
     models_to_try = ["gemini-2.0-flash-exp", "gemini-1.5-flash-latest", "gemini-pro"]
@@ -121,3 +123,13 @@ def check_authorship(original_text, suspect_text):
     # Restore proxy settings before final return
     restore_proxies()
     return "Ulgam häzirki wagtda elýeterli däl. Biraz wagtdan soň täzeden synanyşyň. (System is currently unavailable. Please try again in a few moments.)"
+
+
+# Async wrapper function
+async def check_authorship_async(original_text, suspect_text):
+    """
+    Async wrapper for check_authorship function.
+    Runs the sync function in a thread executor to avoid blocking the event loop.
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, check_authorship, original_text, suspect_text)
