@@ -17,6 +17,9 @@ import {
   Progress,
   Tag
 } from 'antd';
+
+// API URL configuration - use environment variable or localhost default
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 import { 
   FileTextOutlined, 
   UploadOutlined, 
@@ -45,7 +48,7 @@ function App() {
   // Polling function to check result
   const checkResult = async (id) => {
     try {
-      const response = await axios.get(`http://72.56.69.214:8001/result/${id}`);
+      const response = await axios.get(`${API_URL}/result/${id}`);
       if (response.data.status === 'completed') {
         setResult(response.data.message);
         setChecking(false);
@@ -92,7 +95,7 @@ function App() {
       }
 
       const response = await axios.post(
-        'http://72.56.69.214:8001/plagiarism-check/',
+        `${API_URL}/plagiarism-check/`,
         formData,
         {
           headers: {
