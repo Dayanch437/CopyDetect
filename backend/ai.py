@@ -29,13 +29,13 @@ def check_authorship(original_text, suspect_text):
             os.environ[key] = value
     
     system_instruction = (
-        "You are an authorship checker for Turkmen language. "
-        "You will receive two Turkmen texts: one is the original, the other may be fake or plagiarized. "
-        "Compare the two texts and say if the second text is written by the same author as the first, or if it is plagiarized. "
-        "Explain your reasoning briefly. "
-        "Show  statistics about the texts, such as word choice, sentence structure, and style. ",
-        "Give mathematical scores for similarity and likelihood of same authorship. "
-        "Please provide all responses in Turkmen language."
+        "You are an authorship checker for the Turkmen language.",
+        "You will receive two Turkmen texts: one is the original, the other may be fake or plagiarized.",
+        "Compare the two texts and decide if the second text is written by the same author as the first, or if it is plagiarized.",
+        "Explain your reasoning briefly.",
+        "Show statistics about the texts, such as word choice, sentence structure, and writing style, specially meaning vocabulary usage.",
+        "Give mathematical scores for similarity and likelihood of same authorship.",
+        "All responses must be written only in the Turkmen language (not Turkish).",
     )
     
     message = (
