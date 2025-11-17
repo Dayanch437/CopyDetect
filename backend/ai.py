@@ -62,8 +62,6 @@ def check_authorship(original_text, suspect_text):
                 response = chat.send_message(message)
                 result = response.text
                 
-                # Clean markdown formatting from response
-                # Remove ** (bold), __ (bold), * (italic), _ (italic), ``` (code blocks), # (headers)
                 import re
                 result = re.sub(r'\*\*', '', result)  # Remove **
                 result = re.sub(r'__', '', result)    # Remove __
@@ -77,21 +75,18 @@ def check_authorship(original_text, suspect_text):
                 except:
                     pass
                 
-                # Restore proxy settings before returning
                 restore_proxies()
                 return result
                 
             except Exception as e:
                 error_str = str(e)
                 
-                # Clean up on error
                 try:
                     if client and hasattr(client, 'close'):
                         client.close()
                 except:
                     pass
                 
-                # Check if it's a 503 or overload error
                 if "503" in error_str or "overloaded" in error_str.lower() or "UNAVAILABLE" in error_str:
                     if attempt < max_retries - 1:
                         wait_time = retry_delays[attempt]
@@ -99,22 +94,22 @@ def check_authorship(original_text, suspect_text):
                         time.sleep(wait_time)
                         continue
                     else:
-                        # Try next model if available
+                
                         print(f"Trying alternative method...")
                         break
-                # Check for 404 model not found - silently try next model
+
                 elif "404" in error_str or "NOT_FOUND" in error_str or "not found" in error_str.lower():
                     print(f"Switching to alternative method...")
                     break  # Try next model
-                # Check for quota/rate limit errors
+
                 elif "429" in error_str or "quota" in error_str.lower() or "rate limit" in error_str.lower():
                     restore_proxies()
                     return "Ulgam häzirki wagtda işjeň ulanylyp dur. Birazdan täzeden synanyşyň.\n\n(The system is currently busy. Please try again in a few moments.)"
-                # Other errors - show generic message without technical details
+
                 else:
-                    # Don't reveal technical errors to user
+
                     print(f"Error encountered: {error_str[:100]}...")  # Log for debugging
-                    # Try next model instead of returning error
+
                     if attempt < max_retries - 1:
                         time.sleep(2)
                         continue

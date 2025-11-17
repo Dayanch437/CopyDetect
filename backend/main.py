@@ -16,9 +16,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://72.56.69.214:8001",  # Your production server
         "http://72.56.69.214:8220",
-        "http://72.56.70.84:8220",
-        
-        # Add your production domain here when you have one
+        "http://72.56.70.84:8220"
     ],
     allow_credentials=True,
     allow_methods=["*"],
