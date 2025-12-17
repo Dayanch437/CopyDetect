@@ -53,33 +53,68 @@ class ProxyManager:
 
 
 def clean_markdown(text: str) -> str:
-    """Remove markdown formatting from text"""
-    text = re.sub(r'\*\*', '', text)  # Remove **
-    text = re.sub(r'__', '', text)    # Remove __
-    text = re.sub(r'```[a-z]*\n?', '', text)  # Remove code blocks
-    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)  # Remove headers
-    return text
+    """Remove excessive markdown formatting but preserve structure"""
+    # Remove code blocks only
+    text = re.sub(r'```[a-z]*\n?', '', text)
+    text = re.sub(r'```', '', text)
+    # Remove triple asterisks
+    text = re.sub(r'\*\*\*', '', text)
+    return text.strip()
 
 
 def build_authorship_prompt(original_text: str, suspect_text: str) -> str:
     """Build the AI prompt for authorship checking"""
     system_instruction = (
-        "You are an expert authorship verification system for the Turkmen language. "
-        "Analyze the following two Turkmen texts to determine if they were written by the same author or if the second text is plagiarized. "
-        "\n\nAnalysis Requirements:"
-        "\n1. Compare writing style, vocabulary, and sentence structure"
-        "\n2. Identify unique linguistic patterns and author fingerprints"
-        "\n3. Calculate similarity metrics and authorship probability"
-        "\n4. Provide detailed statistics on word choice and grammar patterns"
-        "\n5. Give a clear conclusion with confidence score (0-100%)"
-        "\n\nIMPORTANT: Your entire response MUST be in Turkmen language only (not Turkish or any other language)."
+        "Siz türkmen dili üçin ýokary derejeli awtorlyk barlag ulgamysyňyz. "
+        "Iki sany türkmen dilindäki teksti seljerersiňiz we olar bir awtor tarapyndan ýazylandymy ýa-da ikinji tekst göçürme (plagiat) bolup durmy kesgitlersiňiz."
+        "\n\nDÜÝPLI SELJERME TALAPLARY:"
+        "\n1. ÝAZ STILI SELJERIŞI: Sözlem gurluşyny, paragraf düzümini, geçiş sözleriniň ulanylyşyny derňäň"
+        "\n2. LEKSIKA SELJERIŞI: Söz saýlamasy, terminologiýa, frazeologiýa, sinonimler ulanylyşyny seljeriň"
+        "\n3. GRAMMATIKA SELJERIŞI: Dil häsiýetnamalary, grammatik gurluşlar, ýalňyşlyklaryň ahyrjaňlygy"
+        "\n4. TEKST STATISTIKASY: Sözlem uzaklygyny, söz gaýtalanmasyny, täze sözleriň mukdaryny hasaplaň"
+        "\n5. MEŇZEŞLIK BAHALARY: 0-100% aralygynda anyk meňzeşlik bahasy beriň"
+        "\n6. AWTORLYK ÄHTIMALLYK: 0-100% aralygynda bir awtor ähtimallygy görkeziň"
+        "\n\nNETIJE FORMATY (hökmany bölümleri):"
+        "\n═══════════════════════════════════════"
+        "\n📊 TEKST STATISTIKASY"
+        "\n   • Asyl tekstiň sözleriniň sany: [san]"
+        "\n   • Barlanýan tekstiň sözleriniň sany: [san]"
+        "\n   • Ortaça sözlem uzaklygy: [san]"
+        "\n"
+        "\n🔍 LEKSIKA SELJERIŞI"
+        "\n   • Umumy sözleriň meňzeşlik derejesi: [%]"
+        "\n   • Ulanylýan terminleriň meňzeşligi: [%]"
+        "\n   • Täsin/üýtgeşik sözleriň sany: [san]"
+        "\n"
+        "\n✍️ STIL SELJERIŞI"
+        "\n   • Sözlem gurluşynyň meňzeşligi: [%]"
+        "\n   • Dil häsiýetnama meňzeşligi: [%]"
+        "\n   • Awtorlyk gol nyşanlary: [jikme-jik düşündiriş]"
+        "\n"
+        "\n📈 UMUMY BAHALAMA"
+        "\n   • TEKST MEŇZEŞLIGI: [0-100]%"
+        "\n   • AWTORLYK ÄHTIMALLYGY: [0-100]%"
+        "\n   • PLAGIAT HOWPY: [Pes/Orta/Ýokary]"
+        "\n"
+        "\n🎯 NETIJE"
+        "\n   [Jikme-jik düşündiriş beriň - bu tekstler bir awtor tarapyndan ýazylandymy?"
+        "\n    Subutnamalary we sebäpleri aýdyň düşündiriň. 3-5 sany anyk mysallar getiriň.]"
+        "\n═══════════════════════════════════════"
+        "\n\n‼️ MÖHÜM: Bütin jogaby diňe TÜRKMEN DILINDE ýazyň! (Türk dili däl, Türkmen dili!)"
     )
     
     return (
         f"{system_instruction}\n\n"
-        f"ASYL TEKST (Original Text):\n{original_text}\n\n"
-        f"BARLANÝAN TEKST (Suspect Text):\n{suspect_text}\n\n"
-        "Bu iki tekst bir awtor tarapyndan ýazylandyrmy? Düýpli seljerme beriň we täsiriňizi Türkmen dilinde düşündiriň."
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📄 ASYL TEKST (Original Text):\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{original_text}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"🔍 BARLANÝAN TEKST (Suspect Text):\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{suspect_text}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Indi bu iki teksti ýokarda görkezilen format boýunça düýpli seljeriň!"
     )
 
 
@@ -110,19 +145,34 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
                     # Create a new client for each attempt
                     client = genai.Client(api_key=settings.GEMINI_API_KEY)
                     
-                    # Create chat with stable model configuration
+                    # Create chat with optimized configuration for detailed analysis
                     chat = client.chats.create(
                         model=model,
                         config={
-                            "temperature": 0.7,  # Balanced creativity
-                            "top_p": 0.95,       # Nucleus sampling
-                            "top_k": 40,         # Token selection
-                            "max_output_tokens": 2048,  # Reasonable response length
+                            "temperature": 0.4,  # Lower for more consistent, factual analysis
+                            "top_p": 0.9,        # Focused nucleus sampling for quality
+                            "top_k": 50,         # Broader token selection for detailed responses
+                            "max_output_tokens": 4096,  # Allow longer, more detailed analysis
+                            "candidate_count": 1,  # Single best response
                         }
                     )
                     
+                    # Send message with clear instructions
                     response = chat.send_message(message)
-                    result = clean_markdown(response.text)
+                    
+                    # Clean markdown but preserve structure
+                    result = response.text
+                    
+                    # Only remove excessive markdown, keep formatting
+                    result = re.sub(r'\*\*\*', '', result)  # Remove triple asterisks
+                    result = re.sub(r'```[a-z]*\n?', '', result)  # Remove code blocks only
+                    
+                    # Verify we got a substantial response
+                    if len(result.strip()) < 100:
+                        logger.warning(f"Response too short from {model}, retrying...")
+                        if attempt < settings.MAX_RETRIES - 1:
+                            time.sleep(2)
+                            continue
                     
                     # Clean up client
                     if hasattr(client, 'close'):
@@ -132,7 +182,7 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
                             logger.warning(f"Error closing client: {e}")
                     
                     proxy_manager.restore_proxies()
-                    logger.info(f"Successfully got response from {model}")
+                    logger.info(f"Successfully got detailed response from {model} ({len(result)} chars)")
                     return result
                     
                 except Exception as e:
