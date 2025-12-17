@@ -1,6 +1,3 @@
-"""
-CopyDetect Backend - Plagiarism Detection API
-"""
 import logging
 import uuid
 from datetime import datetime, timedelta
@@ -12,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from ai import check_authorship_async
 from config import settings
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -23,7 +19,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Validate configuration
 try:
     settings.validate()
     logger.info("Configuration validated successfully")
@@ -31,29 +26,25 @@ except ValueError as e:
     logger.error(f"Configuration error: {e}")
     raise
 
-# Store results in memory (use Redis for production)
 results_store: Dict[str, dict] = {}
 
-# Initialize FastAPI app
 app = FastAPI(
     title="CopyDetect API",
     description="Plagiarism detection for Turkmen language texts",
     version="1.0.0"
 )
 
-# Configure CORS - Allow all origins for now
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
-    allow_credentials=False,  # Must be False when allow_origins is ["*"]
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # Expose all headers to the client
+    expose_headers=["*"],
 )
 
 
 async def process_plagiarism_check_task(task_id: str, original_text: str, suspect_text: str):
-    """Background task to process plagiarism check"""
     try:
         logger.info(f"Task {task_id} starting...")
         logger.debug(f"Original text length: {len(original_text)}, Suspect text length: {len(suspect_text)}")
@@ -71,7 +62,6 @@ async def process_plagiarism_check_task(task_id: str, original_text: str, suspec
     except Exception as e:
         logger.error(f"Task {task_id} ERROR: {e}", exc_info=True)
         
-        # Store generic completion message on error
         results_store[task_id] = {
             "status": "completed",
             "message": settings.MESSAGES["analysis_complete"],
@@ -81,7 +71,6 @@ async def process_plagiarism_check_task(task_id: str, original_text: str, suspec
 
 
 def validate_text_input(text: str, field_name: str) -> None:
-    """Validate text input length"""
     if len(text) > settings.MAX_TEXT_LENGTH:
         raise HTTPException(
             status_code=400,
@@ -90,8 +79,6 @@ def validate_text_input(text: str, field_name: str) -> None:
 
 
 def validate_file_size(file: UploadFile) -> None:
-    """Validate file size"""
-    # Note: This is a basic check; for production, stream file and check size during read
     if file.size and file.size > settings.MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=400,
@@ -100,7 +87,6 @@ def validate_file_size(file: UploadFile) -> None:
 
 
 async def cleanup_old_tasks():
-    """Clean up tasks older than TASK_CLEANUP_HOURS"""
     cutoff_time = datetime.now() - timedelta(hours=settings.TASK_CLEANUP_HOURS)
     tasks_to_delete = [
         task_id for task_id, task_data in results_store.items()
@@ -116,7 +102,6 @@ async def cleanup_old_tasks():
 
 @app.on_event("startup")
 async def startup_event():
-    """Application startup"""
     logger.info("CopyDetect API starting up...")
     logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
     logger.info("Rate limiting: DISABLED (unlimited requests)")
@@ -124,13 +109,11 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Application shutdown"""
     logger.info("CopyDetect API shutting down...")
 
 
 @app.get("/")
 async def root():
-    """API root endpoint"""
     return {
         "message": "CopyDetect API",
         "version": "1.0.0",
@@ -140,7 +123,6 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -158,23 +140,9 @@ async def plagiarism_check(
     original_file: UploadFile = File(None),
     suspect_file: UploadFile = File(None)
 ):
-    """
-    Submit a plagiarism check request
-    
-    Args:
-        original_text: Original Turkmen text (optional if file provided)
-        suspect_text: Suspect Turkmen text (optional if file provided)
-        original_file: Original text file (optional if text provided)
-        suspect_file: Suspect text file (optional if text provided)
-        
-    Returns:
-        Task ID for checking results later
-    """
-    # Generate unique task ID
     task_id = str(uuid.uuid4())
     logger.info(f"New plagiarism check request: {task_id}")
     
-    # Mark task as processing
     results_store[task_id] = {
         "status": "processing",
         "message": settings.MESSAGES["processing"],
@@ -182,11 +150,9 @@ async def plagiarism_check(
     }
     
     try:
-        # Extract text from files if provided
         if original_file and suspect_file:
             logger.debug(f"Task {task_id}: Processing files")
             
-            # Validate file sizes
             validate_file_size(original_file)
             validate_file_size(suspect_file)
             
@@ -195,7 +161,6 @@ async def plagiarism_check(
             original_text = original_content.decode('utf-8', errors='ignore')
             suspect_text = suspect_content.decode('utf-8', errors='ignore')
         
-        # Validate input
         if not original_text or not suspect_text:
             logger.warning(f"Task {task_id}: No valid input provided")
             results_store[task_id] = {
@@ -209,11 +174,9 @@ async def plagiarism_check(
                 "message": settings.MESSAGES["accepted"]
             }
         
-        # Validate text lengths
         validate_text_input(original_text, "original_text")
         validate_text_input(suspect_text, "suspect_text")
         
-        # Add background task
         background_tasks.add_task(
             process_plagiarism_check_task,
             task_id,
@@ -234,11 +197,9 @@ async def plagiarism_check(
         }
     
     except HTTPException:
-        # Re-raise HTTP exceptions (validation errors)
         raise
     
     except Exception as e:
-        # Log unexpected errors but return success to user
         logger.error(f"Task {task_id}: Unexpected error: {e}", exc_info=True)
         return {
             "task_id": task_id,
@@ -249,15 +210,6 @@ async def plagiarism_check(
 
 @app.get("/result/{task_id}")
 async def get_result(request: Request, task_id: str):
-    """
-    Get the result of a plagiarism check task
-    
-    Args:
-        task_id: The unique task ID returned by /plagiarism-check/
-        
-    Returns:
-        Task status and results (if completed)
-    """
     logger.debug(f"Result request for task: {task_id}")
     
     if task_id not in results_store:
@@ -277,7 +229,6 @@ async def get_result(request: Request, task_id: str):
 
 @app.delete("/admin/cleanup")
 async def manual_cleanup():
-    """Manually trigger cleanup of old tasks (admin endpoint)"""
     await cleanup_old_tasks()
     return {
         "status": "success",
