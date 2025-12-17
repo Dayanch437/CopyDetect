@@ -152,7 +152,7 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
                             "temperature": 0.4,  # Lower for more consistent, factual analysis
                             "top_p": 0.9,        # Focused nucleus sampling for quality
                             "top_k": 50,         # Broader token selection for detailed responses
-                            "max_output_tokens": 4096,  # Allow longer, more detailed analysis
+                            "max_output_tokens": 16384,  # Allow longer, more detailed analysis
                             "candidate_count": 1,  # Single best response
                         }
                     )
