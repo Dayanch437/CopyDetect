@@ -64,20 +64,22 @@ def clean_markdown(text: str) -> str:
 def build_authorship_prompt(original_text: str, suspect_text: str) -> str:
     """Build the AI prompt for authorship checking"""
     system_instruction = (
-        "You are an authorship checker for the Turkmen language. "
-        "You will receive two Turkmen texts: one is the original, the other may be fake or plagiarized. "
-        "Compare the two texts and decide if the second text is written by the same author as the first, or if it is plagiarized. "
-        "Explain your reasoning briefly. "
-        "Show statistics about the texts, such as word choice, sentence structure, and writing style, specially meaning vocabulary usage. "
-        "Give mathematical scores for similarity and likelihood of same authorship. "
-        "All responses must be written only in the Turkmen language (not Turkish)."
+        "You are an expert authorship verification system for the Turkmen language. "
+        "Analyze the following two Turkmen texts to determine if they were written by the same author or if the second text is plagiarized. "
+        "\n\nAnalysis Requirements:"
+        "\n1. Compare writing style, vocabulary, and sentence structure"
+        "\n2. Identify unique linguistic patterns and author fingerprints"
+        "\n3. Calculate similarity metrics and authorship probability"
+        "\n4. Provide detailed statistics on word choice and grammar patterns"
+        "\n5. Give a clear conclusion with confidence score (0-100%)"
+        "\n\nIMPORTANT: Your entire response MUST be in Turkmen language only (not Turkish or any other language)."
     )
     
     return (
         f"{system_instruction}\n\n"
-        f"Original: {original_text}\n"
-        f"Suspect: {suspect_text}\n"
-        "Is the suspect text plagiarized or written by the same author? Provide your answer in Turkmen."
+        f"ASYL TEKST (Original Text):\n{original_text}\n\n"
+        f"BARLANÝAN TEKST (Suspect Text):\n{suspect_text}\n\n"
+        "Bu iki tekst bir awtor tarapyndan ýazylandyrmy? Düýpli seljerme beriň we täsiriňizi Türkmen dilinde düşündiriň."
     )
 
 
@@ -100,12 +102,25 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
     try:
         # Try each model with retry logic
         for model in settings.AI_MODELS:
+            logger.info(f"Attempting to use model: {model}")
+            
             for attempt in range(settings.MAX_RETRIES):
                 client = None
                 try:
                     # Create a new client for each attempt
                     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-                    chat = client.chats.create(model=model)
+                    
+                    # Create chat with stable model configuration
+                    chat = client.chats.create(
+                        model=model,
+                        config={
+                            "temperature": 0.7,  # Balanced creativity
+                            "top_p": 0.95,       # Nucleus sampling
+                            "top_k": 40,         # Token selection
+                            "max_output_tokens": 2048,  # Reasonable response length
+                        }
+                    )
+                    
                     response = chat.send_message(message)
                     result = clean_markdown(response.text)
                     
