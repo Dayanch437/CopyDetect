@@ -1,6 +1,3 @@
-"""
-AI-powered plagiarism detection using Google Gemini
-"""
 import asyncio
 import logging
 import os
@@ -11,12 +8,10 @@ from typing import Optional
 from google import genai
 from config import settings
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 
 class ProxyManager:
-    """Manages proxy environment variables to avoid httpx conflicts"""
     
     PROXY_VARS = [
         'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
@@ -27,24 +22,19 @@ class ProxyManager:
         self.old_proxies = {}
     
     def disable_proxies(self):
-        """Temporarily disable all proxy settings"""
         for proxy_var in self.PROXY_VARS:
             if proxy_var in os.environ:
                 self.old_proxies[proxy_var] = os.environ[proxy_var]
                 del os.environ[proxy_var]
         
-        # Explicitly set NO_PROXY to bypass proxy
         os.environ['NO_PROXY'] = '*'
         os.environ['no_proxy'] = '*'
         logger.debug("Proxies disabled")
     
     def restore_proxies(self):
-        """Restore original proxy settings"""
-        # Remove NO_PROXY
         os.environ.pop('NO_PROXY', None)
         os.environ.pop('no_proxy', None)
         
-        # Restore old proxies
         for key, value in self.old_proxies.items():
             os.environ[key] = value
         
@@ -53,17 +43,13 @@ class ProxyManager:
 
 
 def clean_markdown(text: str) -> str:
-    """Remove excessive markdown formatting but preserve structure"""
-    # Remove code blocks only
     text = re.sub(r'```[a-z]*\n?', '', text)
     text = re.sub(r'```', '', text)
-    # Remove triple asterisks
     text = re.sub(r'\*\*\*', '', text)
     return text.strip()
 
 
 def build_authorship_prompt(original_text: str, suspect_text: str) -> str:
-    """Build the AI prompt for authorship checking"""
     system_instruction = (
         "Siz türkmen dili üçin ýokary derejeli awtorlyk barlag ulgamysyňyz. "
         "Iki sany türkmen dilindäki teksti seljerersiňiz we olar bir awtor tarapyndan ýazylandymy ýa-da ikinji tekst göçürme (plagiat) bolup durmy kesgitlersiňiz."
@@ -119,62 +105,44 @@ def build_authorship_prompt(original_text: str, suspect_text: str) -> str:
 
 
 def check_authorship(original_text: str, suspect_text: str) -> str:
-    """
-    Check authorship between two texts using Google Gemini AI
-    
-    Args:
-        original_text: The original text
-        suspect_text: The suspect text to compare
-        
-    Returns:
-        Analysis result in Turkmen language
-    """
     proxy_manager = ProxyManager()
     proxy_manager.disable_proxies()
     
     message = build_authorship_prompt(original_text, suspect_text)
     
     try:
-        # Try each model with retry logic
         for model in settings.AI_MODELS:
             logger.info(f"Attempting to use model: {model}")
             
             for attempt in range(settings.MAX_RETRIES):
                 client = None
                 try:
-                    # Create a new client for each attempt
                     client = genai.Client(api_key=settings.GEMINI_API_KEY)
                     
-                    # Create chat with optimized configuration for detailed analysis
                     chat = client.chats.create(
                         model=model,
                         config={
-                            "temperature": 0.4,  # Lower for more consistent, factual analysis
-                            "top_p": 0.9,        # Focused nucleus sampling for quality
-                            "top_k": 50,         # Broader token selection for detailed responses
-                            "max_output_tokens": 16384,  # Allow longer, more detailed analysis
-                            "candidate_count": 1,  # Single best response
+                            "temperature": 0.4,
+                            "top_p": 0.9,
+                            "top_k": 50,
+                            "max_output_tokens": 16384,
+                            "candidate_count": 1,
                         }
                     )
                     
-                    # Send message with clear instructions
                     response = chat.send_message(message)
                     
-                    # Clean markdown but preserve structure
                     result = response.text
                     
-                    # Only remove excessive markdown, keep formatting
-                    result = re.sub(r'\*\*\*', '', result)  # Remove triple asterisks
-                    result = re.sub(r'```[a-z]*\n?', '', result)  # Remove code blocks only
+                    result = re.sub(r'\*\*\*', '', result)
+                    result = re.sub(r'```[a-z]*\n?', '', result)
                     
-                    # Verify we got a substantial response
                     if len(result.strip()) < 100:
                         logger.warning(f"Response too short from {model}, retrying...")
                         if attempt < settings.MAX_RETRIES - 1:
                             time.sleep(2)
                             continue
                     
-                    # Clean up client
                     if hasattr(client, 'close'):
                         try:
                             client.close()
@@ -189,14 +157,12 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
                     error_str = str(e)
                     logger.warning(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} failed for {model}: {error_str[:100]}")
                     
-                    # Clean up client on error
                     if client and hasattr(client, 'close'):
                         try:
                             client.close()
                         except:
                             pass
                     
-                    # Handle specific error types
                     if "503" in error_str or "overloaded" in error_str.lower() or "UNAVAILABLE" in error_str:
                         if attempt < settings.MAX_RETRIES - 1:
                             wait_time = settings.RETRY_DELAYS[attempt]
@@ -233,11 +199,6 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
         return settings.MESSAGES["system_unavailable"]
 
 
-# Async wrapper function
 async def check_authorship_async(original_text, suspect_text):
-    """
-    Async wrapper for check_authorship function.
-    Runs the sync function in a thread executor to avoid blocking the event loop.
-    """
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, check_authorship, original_text, suspect_text)
