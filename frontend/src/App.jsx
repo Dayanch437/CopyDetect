@@ -19,7 +19,7 @@ import {
 } from 'antd';
 
 // API URL configuration - use environment variable or localhost default
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://213.21.235.119:8000';
 import { 
   FileTextOutlined, 
   UploadOutlined, 
@@ -48,32 +48,56 @@ function App() {
   // Polling function to check result
   const checkResult = async (id) => {
     try {
+      console.log('Checking result for task:', id);
       const response = await axios.get(`${API_URL}/result/${id}`);
+      console.log('Result response:', response.data);
+      
       if (response.data.status === 'completed') {
         setResult(response.data.message);
         setChecking(false);
+        setLoading(false);
+        return true;
+      } else if (response.data.status === 'processing') {
+        // Still processing
+        return false;
+      } else {
+        // Not found or error
+        setResult(response.data.message || 'Netije tapylmady.');
+        setChecking(false);
+        setLoading(false);
         return true;
       }
-      return false;
     } catch (error) {
       console.error('Error checking result:', error);
-      return false;
+      setChecking(false);
+      setLoading(false);
+      return true; // Stop polling on error
     }
   };
 
   // Poll for results
   const pollResults = async (id) => {
     setChecking(true);
+    console.log('Starting to poll for task:', id);
+    
     let attempts = 0;
     const maxAttempts = 60; // 5 minutes with 5-second intervals
 
     const pollInterval = setInterval(async () => {
       attempts++;
+      console.log(`Polling attempt ${attempts}/${maxAttempts}`);
+      
       const completed = await checkResult(id);
 
       if (completed || attempts >= maxAttempts) {
+        console.log('Stopping poll:', completed ? 'completed' : 'max attempts reached');
         clearInterval(pollInterval);
         setChecking(false);
+        setLoading(false);
+        
+        if (attempts >= maxAttempts && !completed) {
+          setResult('Wagtyň geçmegi sebäpli barlag togtadyldy. ID bilen soňrak synanyşyp bilersiňiz: ' + id);
+        }
       }
     }, 5000); // Check every 5 seconds
   };
@@ -82,17 +106,30 @@ function App() {
     setLoading(true);
     setResult('');
     setTaskId(null);
+    setChecking(false);
 
     try {
       const formData = new FormData();
 
       if (inputType === 'text') {
+        if (!originalText || !suspectText) {
+          setResult('Iki teksti hem giriziň!\n\n(Please enter both texts!)');
+          setLoading(false);
+          return;
+        }
         formData.append('original_text', originalText);
         formData.append('suspect_text', suspectText);
       } else {
+        if (!originalFile || !suspectFile) {
+          setResult('Iki faýly hem ýükläň!\n\n(Please upload both files!)');
+          setLoading(false);
+          return;
+        }
         formData.append('original_file', originalFile);
         formData.append('suspect_file', suspectFile);
       }
+
+      console.log('Submitting plagiarism check to:', `${API_URL}/plagiarism-check/`);
 
       const response = await axios.post(
         `${API_URL}/plagiarism-check/`,
@@ -104,18 +141,31 @@ function App() {
         }
       );
 
+      console.log('Submission response:', response.data);
+
       // Get task ID and start polling
       const newTaskId = response.data.task_id;
       setTaskId(newTaskId);
-      setResult(response.data.message + '\n\nID: ' + newTaskId);
+      setResult(`Barlanýar...\n\nTask ID: ${newTaskId}\n\n${response.data.message || ''}`);
       
       // Start polling for results
       await pollResults(newTaskId);
     } catch (error) {
-      // Still show success message even on error
-      setResult('Barlagynyz kabul edildi.\n\n(Your request has been accepted. Please check back in a moment.)');
-    } finally {
+      console.error('Submission error:', error);
+      
+      // Show error details
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        setResult(`Ýalňyşlyk: ${error.response.status}\n\n${JSON.stringify(error.response.data, null, 2)}`);
+      } else if (error.request) {
+        console.error('No response received');
+        setResult('Backend bilen baglanyşyk ýok. Backend işleýärmi barlaň.\n\n(Cannot connect to backend. Please check if backend is running.)');
+      } else {
+        setResult(`Ýalňyşlyk: ${error.message}`);
+      }
+      
       setLoading(false);
+      setChecking(false);
     }
   };
 
@@ -384,8 +434,36 @@ function App() {
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Spin size="small" />
                     <Text style={{ fontSize: '14px', color: '#1890ff' }}>
-                      Netijeleri barlaýarys...
+                      Netijeleri barlaýarys... (Awtomat täzelenýär)
                     </Text>
+                    {taskId && (
+                      <Button 
+                        type="link" 
+                        onClick={() => checkResult(taskId)}
+                        size="small"
+                      >
+                        El bilen barla
+                      </Button>
+                    )}
+                  </Space>
+                </Card>
+              )}
+
+              {taskId && !result && !loading && !checking && (
+                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#fff7e6', padding: '20px' }}>
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <Text style={{ fontSize: '14px' }}>
+                      Task ID: <Text code>{taskId}</Text>
+                    </Text>
+                    <Button 
+                      type="primary" 
+                      onClick={() => {
+                        setChecking(true);
+                        checkResult(taskId);
+                      }}
+                    >
+                      Netijäni barla
+                    </Button>
                   </Space>
                 </Card>
               )}
