@@ -8,9 +8,6 @@ from typing import Dict
 
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 from ai import check_authorship_async
 from config import settings
@@ -34,9 +31,6 @@ except ValueError as e:
     logger.error(f"Configuration error: {e}")
     raise
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
-
 # Store results in memory (use Redis for production)
 results_store: Dict[str, dict] = {}
 
@@ -46,10 +40,6 @@ app = FastAPI(
     description="Plagiarism detection for Turkmen language texts",
     version="1.0.0"
 )
-
-# Add rate limiter to app
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -128,7 +118,7 @@ async def startup_event():
     """Application startup"""
     logger.info("CopyDetect API starting up...")
     logger.info(f"CORS origins: {settings.CORS_ORIGINS}")
-    logger.info(f"Rate limit: {settings.RATE_LIMIT_PER_MINUTE} requests/minute")
+    logger.info("Rate limiting: DISABLED (unlimited requests)")
 
 
 @app.on_event("shutdown")
@@ -159,7 +149,6 @@ async def health_check():
 
 
 @app.post("/plagiarism-check/")
-@limiter.limit(f"{settings.RATE_LIMIT_PER_MINUTE}/minute")
 async def plagiarism_check(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -258,7 +247,6 @@ async def plagiarism_check(
 
 
 @app.get("/result/{task_id}")
-@limiter.limit(f"{settings.RATE_LIMIT_PER_MINUTE * 2}/minute")  # Higher limit for result checks
 async def get_result(request: Request, task_id: str):
     """
     Get the result of a plagiarism check task
