@@ -21,7 +21,7 @@ class Settings:
     # CORS Configuration
     CORS_ORIGINS: List[str] = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:5173,http://localhost:3000,http://213.21.235.119:8000"
+        "http://localhost:5173,http://localhost:3000,http://localhost,http://213.21.235.119:8000,http://213.21.235.119:8001"
     ).split(",")
     
     # Rate Limiting
