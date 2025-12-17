@@ -8,3 +8,47 @@
 2025-12-17 11:30:12,199 - main - INFO - CORS origins: ['http://localhost:5173', 'http://localhost:3000', 'http://213.21.235.119:8000']
 2025-12-17 11:30:12,199 - main - INFO - Rate limit: 10 requests/minute
 2025-12-17 11:30:20,331 - main - INFO - CopyDetect API shutting down...
+2025-12-17 11:39:46,861 - main - INFO - Configuration validated successfully
+2025-12-17 11:39:46,866 - main - INFO - CopyDetect API starting up...
+2025-12-17 11:39:46,866 - main - INFO - CORS origins: ['http://localhost:5173', 'http://localhost:3000', 'http://213.21.235.119:8000']
+2025-12-17 11:39:46,866 - main - INFO - Rate limit: 10 requests/minute
+2025-12-17 11:41:35,013 - main - INFO - New plagiarism check request: eb3bb382-0741-456d-a670-ed5236b276b6
+2025-12-17 11:41:35,013 - main - INFO - Task eb3bb382-0741-456d-a670-ed5236b276b6: Accepted and queued for processing
+2025-12-17 11:41:35,014 - main - INFO - Task eb3bb382-0741-456d-a670-ed5236b276b6 starting...
+2025-12-17 11:41:35,014 - ai - INFO - Attempting to use model: gemini-1.5-flash-002
+2025-12-17 11:41:35,014 - root - INFO - AFC is enabled with max remote calls: 10.
+2025-12-17 11:41:35,921 - ai - WARNING - Attempt 1/3 failed for gemini-1.5-flash-002: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-1.5-flash-002 is not found for API 
+2025-12-17 11:41:35,921 - ai - WARNING - Model gemini-1.5-flash-002 not found, trying next model
+2025-12-17 11:41:35,922 - ai - INFO - Attempting to use model: gemini-1.5-pro-002
+2025-12-17 11:41:35,923 - root - INFO - AFC is enabled with max remote calls: 10.
+2025-12-17 11:41:36,651 - ai - WARNING - Attempt 1/3 failed for gemini-1.5-pro-002: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-1.5-pro-002 is not found for API ve
+2025-12-17 11:41:36,651 - ai - WARNING - Model gemini-1.5-pro-002 not found, trying next model
+2025-12-17 11:41:36,652 - ai - INFO - Attempting to use model: gemini-1.5-flash-001
+2025-12-17 11:41:36,652 - root - INFO - AFC is enabled with max remote calls: 10.
+2025-12-17 11:41:37,448 - ai - WARNING - Attempt 1/3 failed for gemini-1.5-flash-001: 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-1.5-flash-001 is not found for API 
+2025-12-17 11:41:37,448 - ai - WARNING - Model gemini-1.5-flash-001 not found, trying next model
+2025-12-17 11:41:37,450 - ai - ERROR - All AI models and retry attempts exhausted
+2025-12-17 11:41:37,451 - main - INFO - Task eb3bb382-0741-456d-a670-ed5236b276b6 completed successfully
+2025-12-17 11:43:17,475 - main - INFO - CopyDetect API shutting down...
+2025-12-17 11:48:05,533 - main - INFO - Configuration validated successfully
+2025-12-17 11:48:05,541 - main - INFO - CopyDetect API starting up...
+2025-12-17 11:48:05,541 - main - INFO - CORS origins: ['http://localhost:5173', 'http://localhost:3000', 'http://213.21.235.119:8000']
+2025-12-17 11:48:05,541 - main - INFO - Rate limit: 10 requests/minute
+2025-12-17 11:48:07,079 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:07,859 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:08,447 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:08,637 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:08,815 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:08,991 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:09,153 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:09,314 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:09,474 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:09,651 - main - WARNING - Task eb3bb382-0741-456d-a670-ed5236b276b6: Not found
+2025-12-17 11:48:14,448 - main - INFO - New plagiarism check request: 143ef0e4-18da-4c24-a9ff-21d1b97c1988
+2025-12-17 11:48:14,448 - main - INFO - Task 143ef0e4-18da-4c24-a9ff-21d1b97c1988: Accepted and queued for processing
+2025-12-17 11:48:14,448 - main - INFO - Task 143ef0e4-18da-4c24-a9ff-21d1b97c1988 starting...
+2025-12-17 11:48:14,449 - ai - INFO - Attempting to use model: gemini-2.5-flash
+2025-12-17 11:48:14,449 - root - INFO - AFC is enabled with max remote calls: 10.
+2025-12-17 11:48:27,966 - ai - INFO - Successfully got response from gemini-2.5-flash
+2025-12-17 11:48:27,966 - main - INFO - Task 143ef0e4-18da-4c24-a9ff-21d1b97c1988 completed successfully
+2025-12-17 11:49:21,437 - main - INFO - CopyDetect API shutting down...

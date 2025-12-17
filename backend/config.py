@@ -35,14 +35,11 @@ class Settings:
     # Task Management
     TASK_CLEANUP_HOURS: int = int(os.getenv("TASK_CLEANUP_HOURS", "24"))
     
-    # AI Models - Using stable, production-ready Gemini models
-    # gemini-1.5-flash-002: Latest stable flash model (fast, reliable)
-    # gemini-1.5-pro-002: Latest stable pro model (high quality)
-    # gemini-1.5-flash-001: Previous stable version (fallback)
+    # AI Models - Using Gemini models
+    # Note: Model availability depends on your API key tier and quota
+    # These models work with google-genai SDK v1beta API
     AI_MODELS: List[str] = [
-        "gemini-1.5-flash-002",  # Primary: Fast and stable
-        "gemini-1.5-pro-002",    # Fallback: High quality
-        "gemini-1.5-flash-001"   # Final fallback: Previous stable
+        "gemini-2.5-flash",      # Stable: Fast and efficient
     ]
     
     # Retry Configuration
