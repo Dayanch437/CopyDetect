@@ -3,202 +3,142 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 
 from google import genai
+from google.genai import types
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-
-class ProxyManager:
-    
-    PROXY_VARS = [
-        'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
-        'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'
-    ]
-    
-    def __init__(self):
-        self.old_proxies = {}
-    
-    def disable_proxies(self):
-        for proxy_var in self.PROXY_VARS:
-            if proxy_var in os.environ:
-                self.old_proxies[proxy_var] = os.environ[proxy_var]
-                del os.environ[proxy_var]
-        
-        os.environ['NO_PROXY'] = '*'
-        os.environ['no_proxy'] = '*'
-        logger.debug("Proxies disabled")
-    
-    def restore_proxies(self):
-        os.environ.pop('NO_PROXY', None)
-        os.environ.pop('no_proxy', None)
-        
-        for key, value in self.old_proxies.items():
-            os.environ[key] = value
-        
-        self.old_proxies.clear()
-        logger.debug("Proxies restored")
+_PROXY_VARS = [
+    'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy',
+    'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy',
+]
 
 
-def clean_markdown(text: str) -> str:
-    text = re.sub(r'```[a-z]*\n?', '', text)
-    text = re.sub(r'```', '', text)
-    text = re.sub(r'\*\*\*', '', text)
-    return text.strip()
+def _clear_proxies() -> dict:
+    """Remove proxy env vars and return their original values."""
+    saved = {}
+    for var in _PROXY_VARS:
+        if var in os.environ:
+            saved[var] = os.environ.pop(var)
+    return saved
+
+
+def _restore_proxies(saved: dict) -> None:
+    for var in _PROXY_VARS:
+        os.environ.pop(var, None)
+    os.environ.update(saved)
 
 
 def build_authorship_prompt(original_text: str, suspect_text: str) -> str:
     system_instruction = (
-        "Siz türkmen dili üçin ýokary derejeli awtorlyk barlag ulgamysyňyz. "
-        "Iki sany türkmen dilindäki teksti seljerersiňiz we olar bir awtor tarapyndan ýazylandymy ýa-da ikinji tekst göçürme (plagiat) bolup durmy kesgitlersiňiz."
-        "\n\nDÜÝPLI SELJERME TALAPLARY:"
-        "\n1. ÝAZ STILI SELJERIŞI: Sözlem gurluşyny, paragraf düzümini, geçiş sözleriniň ulanylyşyny derňäň"
-        "\n2. LEKSIKA SELJERIŞI: Söz saýlamasy, terminologiýa, frazeologiýa, sinonimler ulanylyşyny seljeriň"
-        "\n3. GRAMMATIKA SELJERIŞI: Dil häsiýetnamalary, grammatik gurluşlar, ýalňyşlyklaryň ahyrjaňlygy"
-        "\n4. TEKST STATISTIKASY: Sözlem uzaklygyny, söz gaýtalanmasyny, täze sözleriň mukdaryny hasaplaň"
-        "\n5. MEŇZEŞLIK BAHALARY: 0-100% aralygynda anyk meňzeşlik bahasy beriň"
-        "\n6. AWTORLYK ÄHTIMALLYK: 0-100% aralygynda bir awtor ähtimallygy görkeziň"
-        "\n\nNETIJE FORMATY (hökmany bölümleri):"
+        "Siz türkmen dilindäki tekstleriň awtorlygyny kesgitleýän ýöriteleşdirilen seljerme ulgamsyňyz. "
+        "Size berlen iki teksti jikme-jik öwreniň we olaryň bir adam tarapyndan ýazylandygyny ýa-da biriniň beýlekisinden göçürilendigini (plagiat) anyklaň."
+        "\n\nSELJERMEDE ÜNS BERMELI UGURLAR:"
+        "\n1. ÝAZUW USLUBY: Sözlem gurluşyny, abzas düzümini we baglanyşdyryjy sözleriň ulanylyşyny öwreniň"
+        "\n2. SÖZDAGLYK: Söz saýlawy, hünär terminleri, durnukly söz düzümleri we goşalyşyklaryň ulanylyşy"
+        "\n3. GRAMMATIK GURLUŞ: Diliň özüne mahsus aýratynlyklary, grammatik gurluşlaryň we ýalňyşlyklaryň gabat gelşi"
+        "\n4. TEKST SANLARY: Sözlem uzynlygyny, gaýtalanýan sözleri we täze sözleriň sanyny hasaplaň"
+        "\n5. MEŇZEŞLIK DEREJESI: 0-dan 100%-e çenli takyk meňzeşlik görkezijisini kesgitläň"
+        "\n6. AWTORLYK MÜMKINÇILIGI: 0-dan 100%-e çenli bir awtoryň ýazan bolmagy ähtimallygyny görkeziň"
+        "\n\nJOGABYŇYZYŇ DÜZÜMI (şu bölümleri hökman goşuň):"
         "\n═══════════════════════════════════════"
-        "\n📊 TEKST STATISTIKASY"
-        "\n   • Asyl tekstiň sözleriniň sany: [san]"
-        "\n   • Barlanýan tekstiň sözleriniň sany: [san]"
-        "\n   • Ortaça sözlem uzaklygy: [san]"
+        "\n📊 TEKST SANLARY"
+        "\n   • Asyl tekstdäki sözleriň sany: [san]"
+        "\n   • Barlanýan tekstdäki sözleriň sany: [san]"
+        "\n   • Ortaça sözlem uzynlygy: [san söz]"
         "\n"
-        "\n🔍 LEKSIKA SELJERIŞI"
-        "\n   • Umumy sözleriň meňzeşlik derejesi: [%]"
-        "\n   • Ulanylýan terminleriň meňzeşligi: [%]"
-        "\n   • Täsin/üýtgeşik sözleriň sany: [san]"
+        "\n🔍 SÖZDAGLYK SELJERMESI"
+        "\n   • Umumy sözlügiň meňzeşlik derejesi: [%]"
+        "\n   • Hünär terminleriniň gabat gelşi: [%]"
+        "\n   • Diňe bir tekstde duş gelýän sözleriň sany: [san]"
         "\n"
-        "\n✍️ STIL SELJERIŞI"
-        "\n   • Sözlem gurluşynyň meňzeşligi: [%]"
-        "\n   • Dil häsiýetnama meňzeşligi: [%]"
-        "\n   • Awtorlyk gol nyşanlary: [jikme-jik düşündiriş]"
+        "\n✍️ ÝAZUW USLUBY SELJERMESI"
+        "\n   • Sözlem gurluşlarynyň meňzeşligi: [%]"
+        "\n   • Diliň umumy häsiýetnamasynyň meňzeşligi: [%]"
+        "\n   • Awtora mahsus alamatlar: [giňişleýin düşündiriş]"
         "\n"
-        "\n📈 UMUMY BAHALAMA"
-        "\n   • TEKST MEŇZEŞLIGI: [0-100]%"
-        "\n   • AWTORLYK ÄHTIMALLYGY: [0-100]%"
-        "\n   • PLAGIAT HOWPY: [Pes/Orta/Ýokary]"
+        "\n📈 JEMI BAHA"
+        "\n   • TEKSTLERIŇ MEŇZEŞLIGI: [0-100]%"
+        "\n   • AWTORLYK MÜMKINÇILIGI: [0-100]%"
+        "\n   • PLAGIAT HOWPUNYŇ DEREJESI: [Pes / Orta / Ýokary]"
         "\n"
         "\n🎯 NETIJE"
-        "\n   [Jikme-jik düşündiriş beriň - bu tekstler bir awtor tarapyndan ýazylandymy?"
-        "\n    Subutnamalary we sebäpleri aýdyň düşündiriň. 3-5 sany anyk mysallar getiriň.]"
+        "\n   [Bu iki teksti bir adam ýazdymy ýa-da biri beýlekisinden göçürilip alyndymy?"
+        "\n    Netijäňizi deliller we mysallar bilen düşündiriň. Azyndan 3-5 anyk mysal getiriň.]"
         "\n═══════════════════════════════════════"
-        "\n\n‼️ MÖHÜM: Bütin jogaby diňe TÜRKMEN DILINDE ýazyň! (Türk dili däl, Türkmen dili!)"
+        "\n\n‼️ WAJYP: Ähli jogabyňyzy diňe TÜRKMEN DILINDE ýazyň! (Türkçe däl, Türkmençe!)"
     )
-    
+
     return (
         f"{system_instruction}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📄 ASYL TEKST (Original Text):\n"
+        f"📄 ASYL TEKST:\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{original_text}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔍 BARLANÝAN TEKST (Suspect Text):\n"
+        f"🔍 BARLANÝAN TEKST:\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{suspect_text}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Indi bu iki teksti ýokarda görkezilen format boýunça düýpli seljeriň!"
+        "Indi ýokarda görkezilen düzüme laýyklykda bu iki teksti jikme-jik seljeriň!"
     )
 
 
 def check_authorship(original_text: str, suspect_text: str) -> str:
-    proxy_manager = ProxyManager()
-    proxy_manager.disable_proxies()
-    
-    message = build_authorship_prompt(original_text, suspect_text)
-    
-    try:
-        for model in settings.AI_MODELS:
-            logger.info(f"Attempting to use model: {model}")
-            
-            for attempt in range(settings.MAX_RETRIES):
-                client = None
-                try:
-                    client = genai.Client(api_key=settings.GEMINI_API_KEY)
-                    
-                    chat = client.chats.create(
-                        model=model,
-                        config={
-                            "temperature": 0.4,
-                            "top_p": 0.9,
-                            "top_k": 50,
-                            "max_output_tokens": 16384,
-                            "candidate_count": 1,
-                        }
-                    )
-                    
-                    response = chat.send_message(message)
-                    
-                    result = response.text
-                    
-                    result = re.sub(r'\*\*\*', '', result)
-                    result = re.sub(r'```[a-z]*\n?', '', result)
-                    
-                    if len(result.strip()) < 100:
-                        logger.warning(f"Response too short from {model}, retrying...")
-                        if attempt < settings.MAX_RETRIES - 1:
-                            time.sleep(2)
-                            continue
-                    
-                    if hasattr(client, 'close'):
-                        try:
-                            client.close()
-                        except Exception as e:
-                            logger.warning(f"Error closing client: {e}")
-                    
-                    proxy_manager.restore_proxies()
-                    logger.info(f"Successfully got detailed response from {model} ({len(result)} chars)")
-                    return result
-                    
-                except Exception as e:
-                    error_str = str(e)
-                    logger.warning(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} failed for {model}: {error_str[:100]}")
-                    
-                    if client and hasattr(client, 'close'):
-                        try:
-                            client.close()
-                        except:
-                            pass
-                    
-                    if "503" in error_str or "overloaded" in error_str.lower() or "UNAVAILABLE" in error_str:
-                        if attempt < settings.MAX_RETRIES - 1:
-                            wait_time = settings.RETRY_DELAYS[attempt]
-                            logger.info(f"Server overloaded, waiting {wait_time}s before retry")
-                            time.sleep(wait_time)
-                            continue
-                        else:
-                            logger.warning(f"Max retries reached for {model}, trying next model")
-                            break
-                    
-                    elif "404" in error_str or "NOT_FOUND" in error_str or "not found" in error_str.lower():
-                        logger.warning(f"Model {model} not found, trying next model")
-                        break
-                    
-                    elif "429" in error_str or "quota" in error_str.lower() or "rate limit" in error_str.lower():
-                        proxy_manager.restore_proxies()
-                        return settings.MESSAGES["system_busy"]
-                    
-                    else:
-                        if attempt < settings.MAX_RETRIES - 1:
-                            time.sleep(2)
-                            continue
-                        else:
-                            break
-        
-        # If all attempts failed
-        proxy_manager.restore_proxies()
-        logger.error("All AI models and retry attempts exhausted")
-        return settings.MESSAGES["system_unavailable"]
-        
-    except Exception as e:
-        logger.error(f"Unexpected error in check_authorship: {e}")
-        proxy_manager.restore_proxies()
-        return settings.MESSAGES["system_unavailable"]
+    prompt = build_authorship_prompt(original_text, suspect_text)
+    saved_proxies = _clear_proxies()
+
+    for attempt in range(settings.MAX_RETRIES):
+        try:
+            client = genai.Client(api_key=settings.API_KEY)
+
+            response = client.models.generate_content(
+                model=settings.AI_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.4,
+                    top_p=0.9,
+                    max_output_tokens=8192,
+                ),
+            )
+
+            result = response.text or ""
+            result = re.sub(r'```[a-z]*\n?', '', result)
+            result = re.sub(r'```', '', result)
+            result = re.sub(r'\*\*\*', '', result)
+            result = result.strip()
+
+            if len(result) < 100:
+                logger.warning(f"Response too short (attempt {attempt + 1}), retrying...")
+                if attempt < settings.MAX_RETRIES - 1:
+                    time.sleep(2)
+                    continue
+
+            logger.info(f"Got response from {settings.AI_MODEL} ({len(result)} chars)")
+            _restore_proxies(saved_proxies)
+            return result
+
+        except Exception as e:
+            error_str = str(e)
+            logger.warning(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} failed: {error_str[:150]}")
+
+            if "429" in error_str or "quota" in error_str.lower() or "rate" in error_str.lower():
+                _restore_proxies(saved_proxies)
+                return settings.MESSAGES["system_busy"]
+
+            if attempt < settings.MAX_RETRIES - 1:
+                wait = settings.RETRY_DELAYS[attempt]
+                logger.info(f"Waiting {wait}s before retry...")
+                time.sleep(wait)
+            else:
+                logger.error("All retry attempts exhausted")
+
+    _restore_proxies(saved_proxies)
+    return settings.MESSAGES["system_unavailable"]
 
 
-async def check_authorship_async(original_text, suspect_text):
+async def check_authorship_async(original_text: str, suspect_text: str) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, check_authorship, original_text, suspect_text)

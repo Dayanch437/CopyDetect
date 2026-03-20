@@ -18,17 +18,15 @@ import {
   Tag
 } from 'antd';
 
-// API URL configuration - use environment variable or localhost default
-const API_URL = import.meta.env.VITE_API_URL || 'http://213.21.235.119:8000';
-import { 
-  FileTextOutlined, 
-  UploadOutlined, 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import {
+  FileTextOutlined,
+  UploadOutlined,
   CheckCircleOutlined,
   SafetyOutlined,
   WarningOutlined,
   FileProtectOutlined
 } from '@ant-design/icons';
-import './App.css';
 
 const { TextArea } = Input;
 const { Content, Header } = Layout;
@@ -96,7 +94,7 @@ function App() {
         setLoading(false);
         
         if (attempts >= maxAttempts && !completed) {
-          setResult('Wagtyň geçmegi sebäpli barlag togtadyldy. ID bilen soňrak synanyşyp bilersiňiz: ' + id);
+          setResult('Wagt möhleti doldy. Şu ID belgisi bilen soňra gaýtadan barlaşyp bilersiňiz: ' + id);
         }
       }
     }, 5000); // Check every 5 seconds
@@ -113,7 +111,7 @@ function App() {
 
       if (inputType === 'text') {
         if (!originalText || !suspectText) {
-          setResult('Iki teksti hem giriziň!\n\n(Please enter both texts!)');
+          setResult('Iki teksti hem doldurmalysyňyz!');
           setLoading(false);
           return;
         }
@@ -121,7 +119,7 @@ function App() {
         formData.append('suspect_text', suspectText);
       } else {
         if (!originalFile || !suspectFile) {
-          setResult('Iki faýly hem ýükläň!\n\n(Please upload both files!)');
+          setResult('Iki faýly hem saýlamaly!');
           setLoading(false);
           return;
         }
@@ -146,7 +144,7 @@ function App() {
       // Get task ID and start polling
       const newTaskId = response.data.task_id;
       setTaskId(newTaskId);
-      setResult(`Barlanýar...\n\nTask ID: ${newTaskId}\n\n${response.data.message || ''}`);
+      setResult(`Barlag geçirilýär...\n\nBarlag belgisi: ${newTaskId}\n\n${response.data.message || ''}`);
       
       // Start polling for results
       await pollResults(newTaskId);
@@ -156,12 +154,12 @@ function App() {
       // Show error details
       if (error.response) {
         console.error('Error response:', error.response.data);
-        setResult(`Ýalňyşlyk: ${error.response.status}\n\n${JSON.stringify(error.response.data, null, 2)}`);
+        setResult(`Näsazlyk (${error.response.status}): ${JSON.stringify(error.response.data, null, 2)}`);
       } else if (error.request) {
         console.error('No response received');
-        setResult('Backend bilen baglanyşyk ýok. Backend işleýärmi barlaň.\n\n(Cannot connect to backend. Please check if backend is running.)');
+        setResult('Serwer bilen baglanyşyk ýok. Serweriň işleýändigini barlaň.');
       } else {
-        setResult(`Ýalňyşlyk: ${error.message}`);
+        setResult(`Näsazlyk: ${error.message}`);
       }
       
       setLoading(false);
@@ -220,7 +218,7 @@ function App() {
         <Space>
           <FileProtectOutlined style={{ fontSize: '28px', color: '#667eea' }} />
           <Title level={3} style={{ margin: 0, color: '#667eea' }}>
-            Plagiat Barlaýjy
+            Plagiat Barlagçy
           </Title>
         </Space>
       </Header>
@@ -244,8 +242,8 @@ function App() {
                   Hoş geldiňiz!
                 </Title>
                 <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: 0 }}>
-                  Teksti ýa-da faýly ýükläp, plagiat barlagyny başlaň. 
-                  Ulgam iki teksti deňeşdirip, netijesini görkezer.
+                  Tekst ýazyň ýa-da faýl saýlaň, plagiat barlagyny başlaň.
+                  Ulgam iki teksti deňeşdirip, jikme-jik netije çykarar.
                 </Paragraph>
               </Col>
             </Row>
@@ -265,12 +263,12 @@ function App() {
                   value={inputType}
                   onChange={setInputType}
                   options={[
-                    { 
-                      label: <span><FileTextOutlined /> Tekst giriziň</span>, 
+                    {
+                      label: <span><FileTextOutlined /> Tekst ýazyň</span>,
                       value: 'text'
                     },
-                    { 
-                      label: <span><UploadOutlined /> Faýl ýükläň</span>, 
+                    {
+                      label: <span><UploadOutlined /> Faýl saýlaň</span>,
                       value: 'file'
                     },
                   ]}
@@ -288,7 +286,7 @@ function App() {
                       title={
                         <Space>
                           <FileTextOutlined style={{ color: '#52c41a' }} />
-                          <Text strong>Asyl tekst (Türkmençe)</Text>
+                          <Text strong>Asyl tekst</Text>
                         </Space>
                       }
                       style={{ height: '100%' }}
@@ -296,7 +294,7 @@ function App() {
                       <TextArea
                         value={originalText}
                         onChange={(e) => setOriginalText(e.target.value)}
-                        placeholder="Asyl teksti bu ýere giriziň..."
+                        placeholder="Asyl tekstiňizi şu ýere ýazyň..."
                         rows={8}
                         showCount
                         maxLength={5000}
@@ -311,7 +309,7 @@ function App() {
                       title={
                         <Space>
                           <FileTextOutlined style={{ color: '#faad14' }} />
-                          <Text strong>Barlanylýan tekst (Türkmençe)</Text>
+                          <Text strong>Barlanýan tekst</Text>
                         </Space>
                       }
                       style={{ height: '100%' }}
@@ -319,7 +317,7 @@ function App() {
                       <TextArea
                         value={suspectText}
                         onChange={(e) => setSuspectText(e.target.value)}
-                        placeholder="Barlanylýan teksti bu ýere giriziň..."
+                        placeholder="Barlanýan tekstiňizi şu ýere ýazyň..."
                         rows={8}
                         showCount
                         maxLength={5000}
@@ -344,6 +342,7 @@ function App() {
                         <div style={{ padding: '20px', textAlign: 'center' }}>
                           <UploadOutlined style={{ fontSize: '32px', color: '#52c41a' }} />
                           <div style={{ marginTop: 8 }}>Asyl faýly saýlaň</div>
+
                           <Text type="secondary" style={{ fontSize: '12px' }}>
                             PDF, DOCX, TXT
                           </Text>
@@ -397,22 +396,22 @@ function App() {
                   marginTop: '16px'
                 }}
               >
-                {loading ? 'Barlanýar...' : 'Plagiat barlagyny başla'}
+                {loading ? 'Barlag geçirilýär...' : 'Plagiat barlagyny başlaň'}
               </Button>
 
               {loading && (
                 <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#f6f8fa', padding: '30px' }}>
                   <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    <Spin size="large" tip="Barlanýar..." />
+                    <Spin size="large" tip="Barlag geçirilýär..." />
                     <Progress percent={75} status="active" strokeColor={{ from: '#667eea', to: '#764ba2' }} />
                     <Text strong style={{ fontSize: '16px', color: '#667eea' }}>
-                      Tekst analizine çalynýar...
+                      Tekst seljermesi amala aşyrylýar...
                     </Text>
                     {taskId && (
                       <Card style={{ background: 'white', marginTop: '16px' }}>
                         <Row gutter={16}>
                           <Col span={24}>
-                            <Text type="secondary" style={{ fontSize: '14px' }}>Barlag ID:</Text>
+                            <Text type="secondary" style={{ fontSize: '14px' }}>Barlag belgisi:</Text>
                           </Col>
                           <Col span={24}>
                             <Text code style={{ fontSize: '16px', fontWeight: 'bold', color: '#667eea' }}>
@@ -423,7 +422,7 @@ function App() {
                       </Card>
                     )}
                     <Text type="secondary" style={{ fontSize: '13px' }}>
-                      Biraz garaşyň... Netije tez alynyp barer
+                      Sabyr ediň... Netije az wagtda taýýar bolar
                     </Text>
                   </Space>
                 </Card>
@@ -434,15 +433,15 @@ function App() {
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Spin size="small" />
                     <Text style={{ fontSize: '14px', color: '#1890ff' }}>
-                      Netijeleri barlaýarys... (Awtomat täzelenýär)
+                      Netijeler barlanýar... (Öz-özünden täzelenýär)
                     </Text>
                     {taskId && (
-                      <Button 
-                        type="link" 
+                      <Button
+                        type="link"
                         onClick={() => checkResult(taskId)}
                         size="small"
                       >
-                        El bilen barla
+                        Gaýtadan barla
                       </Button>
                     )}
                   </Space>
@@ -453,16 +452,16 @@ function App() {
                 <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#fff7e6', padding: '20px' }}>
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Text style={{ fontSize: '14px' }}>
-                      Task ID: <Text code>{taskId}</Text>
+                      Barlag belgisi: <Text code>{taskId}</Text>
                     </Text>
-                    <Button 
-                      type="primary" 
+                    <Button
+                      type="primary"
                       onClick={() => {
                         setChecking(true);
                         checkResult(taskId);
                       }}
                     >
-                      Netijäni barla
+                      Netijäni gör
                     </Button>
                   </Space>
                 </Card>
@@ -484,7 +483,7 @@ function App() {
                         <Row gutter={16}>
                           <Col xs={24} sm={8}>
                             <Text type="secondary" style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                              Barlag ID:
+                              Barlag belgisi:
                             </Text>
                           </Col>
                           <Col xs={24} sm={16}>
@@ -503,10 +502,10 @@ function App() {
                       </Col>
                       <Col xs={24} sm={20}>
                         <Title level={3} style={{ margin: 0, marginBottom: '8px', color: '#1f1f1f' }}>
-                          Barlag Tamamlandi ✓
+                          Barlag Tamamlandy ✓
                         </Title>
                         <Tag color="green" style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                          ÜSTÜNLIKLI
+                          ÜSTÜNLIKLI TAMAMLANDY
                         </Tag>
                       </Col>
                     </Row>
@@ -517,7 +516,7 @@ function App() {
                     <Card style={{ background: 'white', borderRadius: '12px', border: '1px solid #52c41a' }}>
                       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                         <Title level={4} style={{ margin: 0, color: '#1f1f1f' }}>
-                          📋 Barlag Netijeleri:
+                          📋 Seljerme Netijeleri:
                         </Title>
                         <Text style={{ fontSize: '15px', lineHeight: '1.8', whiteSpace: 'pre-wrap', color: '#333' }}>
                           {result}
@@ -539,7 +538,7 @@ function App() {
                           border: 'none'
                         }}
                       >
-                        Täzeden Barlaş
+                        Täze Barlag Geçir
                       </Button>
                     </Space>
                   </Space>
