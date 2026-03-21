@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
-import { 
-  Layout, 
-  Card, 
-  Segmented, 
-  Input, 
-  Upload, 
-  Button, 
-  Alert, 
+import {
+  ConfigProvider,
+  Layout,
+  Card,
+  Segmented,
+  Input,
+  Upload,
+  Button,
   Spin,
   Typography,
   Space,
@@ -15,541 +15,747 @@ import {
   Col,
   Divider,
   Progress,
-  Tag
+  Tag,
+  App as AntApp,
+  theme as antTheme,
 } from 'antd';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 import {
   FileTextOutlined,
   UploadOutlined,
-  CheckCircleOutlined,
   SafetyOutlined,
   WarningOutlined,
-  FileProtectOutlined
+  FileProtectOutlined,
+  ReloadOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const MAX_FILE_SIZE_MB = 10;
+const POLL_INTERVAL_MS = 5000;
+const MAX_POLL_ATTEMPTS = 60;
 
 const { TextArea } = Input;
 const { Content, Header } = Layout;
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
-function App() {
+// ─── Header ──────────────────────────────────────────────────────────────────
+
+function AppHeader() {
+  return (
+    <Header
+      style={{
+        background: '#0b1120',
+        borderBottom: '1px solid #1e2d45',
+        padding: '0 32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: '60px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}
+    >
+      <Space size={10}>
+        <FileProtectOutlined style={{ fontSize: '22px', color: '#4f8ef7' }} />
+        <Text
+          strong
+          style={{ fontSize: '17px', color: '#e2e8f0', letterSpacing: '0.4px' }}
+        >
+          CopyDetect
+        </Text>
+      </Space>
+      <Tag
+        color="blue"
+        style={{ fontSize: '10px', letterSpacing: '1px', fontWeight: 600 }}
+      >
+        BETA
+      </Tag>
+    </Header>
+  );
+}
+
+// ─── Upload Area (shared) ─────────────────────────────────────────────────────
+
+function UploadArea({ label, accentColor, file, onSet }) {
+  const { message } = AntApp.useApp();
+
+  const beforeUpload = (f) => {
+    const validTypes = ['.pdf', '.docx', '.txt'];
+    const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
+    if (!validTypes.includes(ext)) {
+      message.error('Diňe PDF, DOCX we TXT faýllary goldanylýar.');
+      return Upload.LIST_IGNORE;
+    }
+    if (f.size / 1024 / 1024 > MAX_FILE_SIZE_MB) {
+      message.error(`Faýl ${MAX_FILE_SIZE_MB} MB-dan kiçi bolmalydyr.`);
+      return Upload.LIST_IGNORE;
+    }
+    onSet(f);
+    return false;
+  };
+
+  return (
+    <Card
+      size="small"
+      title={
+        <Space size={8}>
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: accentColor,
+              display: 'inline-block',
+              flexShrink: 0,
+            }}
+          />
+          <Text
+            style={{
+              color: '#94a3b8',
+              fontSize: '11px',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              fontWeight: 700,
+            }}
+          >
+            {label}
+          </Text>
+        </Space>
+      }
+      styles={{
+        body: { padding: '16px' },
+        header: { borderBottom: '1px solid #1e2d45', minHeight: '44px' },
+      }}
+      style={{ background: '#0d1626', border: '1px solid #1e2d45', borderRadius: '12px' }}
+    >
+      <Upload
+        beforeUpload={beforeUpload}
+        onRemove={() => onSet(null)}
+        maxCount={1}
+        accept=".pdf,.docx,.txt"
+        showUploadList={!!file}
+      >
+        <div
+          style={{
+            border: `2px dashed ${file ? accentColor : '#2a3a55'}`,
+            borderRadius: '10px',
+            padding: '44px 20px',
+            textAlign: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            background: file ? `${accentColor}0d` : 'transparent',
+          }}
+        >
+          <UploadOutlined
+            style={{
+              fontSize: '28px',
+              color: file ? accentColor : '#3a4f6e',
+              marginBottom: '10px',
+              display: 'block',
+            }}
+          />
+          <Text style={{ color: '#94a3b8', fontSize: '14px', display: 'block' }}>
+            {file ? file.name : 'Faýly saýlaň ýa-da süýräň'}
+          </Text>
+          <Text style={{ color: '#3a4f6e', fontSize: '12px' }}>
+            PDF · DOCX · TXT &nbsp;·&nbsp; Iň köp {MAX_FILE_SIZE_MB} MB
+          </Text>
+        </div>
+      </Upload>
+    </Card>
+  );
+}
+
+// ─── Text Input Panel ─────────────────────────────────────────────────────────
+
+function TextInputPanel({ originalText, setOriginalText, suspectText, setSuspectText }) {
+  const panelStyle = {
+    background: '#0d1626',
+    border: '1px solid #1e2d45',
+    borderRadius: '12px',
+    overflow: 'hidden',
+  };
+
+  const labelStyle = {
+    color: '#94a3b8',
+    fontSize: '11px',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    fontWeight: 700,
+  };
+
+  const dotStyle = (color) => ({
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: color,
+    display: 'inline-block',
+    flexShrink: 0,
+  });
+
+  return (
+    <Row gutter={[20, 20]}>
+      <Col xs={24} lg={12}>
+        <Card
+          size="small"
+          title={
+            <Space size={8}>
+              <span style={dotStyle('#22c55e')} />
+              <Text style={labelStyle}>Asyl Tekst</Text>
+            </Space>
+          }
+          styles={{
+            body: { padding: '12px' },
+            header: { borderBottom: '1px solid #1e2d45', minHeight: '44px' },
+          }}
+          style={panelStyle}
+        >
+          <TextArea
+            value={originalText}
+            onChange={(e) => setOriginalText(e.target.value)}
+            placeholder="Asyl tekstiňizi şu ýere ýazyň..."
+            rows={10}
+            showCount
+            maxLength={5000}
+            style={{ fontSize: '14px', resize: 'none' }}
+          />
+        </Card>
+      </Col>
+
+      <Col xs={24} lg={12}>
+        <Card
+          size="small"
+          title={
+            <Space size={8}>
+              <span style={dotStyle('#f59e0b')} />
+              <Text style={labelStyle}>Barlanýan Tekst</Text>
+            </Space>
+          }
+          styles={{
+            body: { padding: '12px' },
+            header: { borderBottom: '1px solid #1e2d45', minHeight: '44px' },
+          }}
+          style={panelStyle}
+        >
+          <TextArea
+            value={suspectText}
+            onChange={(e) => setSuspectText(e.target.value)}
+            placeholder="Barlanýan tekstiňizi şu ýere ýazyň..."
+            rows={10}
+            showCount
+            maxLength={5000}
+            style={{ fontSize: '14px', resize: 'none' }}
+          />
+        </Card>
+      </Col>
+    </Row>
+  );
+}
+
+// ─── File Upload Panel ────────────────────────────────────────────────────────
+
+function FileInputPanel({ originalFile, setOriginalFile, suspectFile, setSuspectFile }) {
+  return (
+    <Row gutter={[20, 20]}>
+      <Col xs={24} lg={12}>
+        <UploadArea
+          label="Asyl Faýl"
+          accentColor="#22c55e"
+          file={originalFile}
+          onSet={setOriginalFile}
+        />
+      </Col>
+      <Col xs={24} lg={12}>
+        <UploadArea
+          label="Barlanýan Faýl"
+          accentColor="#f59e0b"
+          file={suspectFile}
+          onSet={setSuspectFile}
+        />
+      </Col>
+    </Row>
+  );
+}
+
+// ─── Loading Panel ────────────────────────────────────────────────────────────
+
+function LoadingPanel({ taskId }) {
+  return (
+    <Card
+      style={{
+        borderRadius: '12px',
+        background: '#0d1626',
+        border: '1px solid #1e2d45',
+        textAlign: 'center',
+      }}
+      styles={{ body: { padding: '40px 24px' } }}
+    >
+      <Space direction="vertical" size={20} style={{ width: '100%' }}>
+        <Spin size="large" />
+        <div>
+          <Text
+            strong
+            style={{ fontSize: '16px', color: '#e2e8f0', display: 'block', marginBottom: '4px' }}
+          >
+            Resminamalar seljerilyär...
+          </Text>
+          <Text style={{ color: '#4f6f94', fontSize: '13px' }}>
+            Bu birnäçe minut alyp biler
+          </Text>
+        </div>
+        <Progress
+          percent={75}
+          status="active"
+          strokeColor={{ from: '#4f8ef7', to: '#7c3aed' }}
+          showInfo={false}
+          strokeWidth={5}
+          style={{ maxWidth: '380px', margin: '0 auto' }}
+        />
+        {taskId && (
+          <div
+            style={{
+              background: '#1a2740',
+              border: '1px solid #1e2d45',
+              borderRadius: '8px',
+              padding: '12px 20px',
+              display: 'inline-block',
+            }}
+          >
+            <Text style={{ color: '#4f6f94', fontSize: '11px', display: 'block', marginBottom: '4px', letterSpacing: '0.5px' }}>
+              IŞ BELGISI
+            </Text>
+            <Text code style={{ color: '#4f8ef7', fontSize: '13px' }}>
+              {taskId}
+            </Text>
+          </div>
+        )}
+        <Space>
+          <ClockCircleOutlined style={{ color: '#3a4f6e' }} />
+          <Text style={{ color: '#3a4f6e', fontSize: '12px' }}>
+            Netijeler awtomatiki usulda peýda bolar
+          </Text>
+        </Space>
+      </Space>
+    </Card>
+  );
+}
+
+// ─── Result Panel ─────────────────────────────────────────────────────────────
+
+function ResultPanel({ result, taskId, resultStatus, onReset }) {
+  const isError = resultStatus === 'error';
+  const accentColor = isError ? '#ef4444' : '#22c55e';
+
+  return (
+    <Card
+      style={{
+        borderRadius: '12px',
+        background: '#0d1626',
+        border: `1px solid ${accentColor}40`,
+      }}
+      styles={{ body: { padding: '28px' } }}
+    >
+      <Space direction="vertical" size={20} style={{ width: '100%' }}>
+        {/* Header row */}
+        <Row align="middle" gutter={16} wrap={false}>
+          <Col flex="none">
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: '12px',
+                background: `${accentColor}15`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isError
+                ? <WarningOutlined style={{ fontSize: '24px', color: '#ef4444' }} />
+                : <CheckCircleOutlined style={{ fontSize: '24px', color: '#22c55e' }} />
+              }
+            </div>
+          </Col>
+          <Col flex="auto">
+            <Text
+              strong
+              style={{ fontSize: '17px', color: '#e2e8f0', display: 'block', marginBottom: '4px' }}
+            >
+              {isError ? 'Seljerme Şowsuz Boldy' : 'Seljerme Tamamlandy'}
+            </Text>
+            <Tag color={isError ? 'error' : 'success'} style={{ fontSize: '10px', letterSpacing: '0.8px', fontWeight: 700 }}>
+              {isError ? 'ŞOWSUZ' : 'TAMAMLANDY'}
+            </Tag>
+          </Col>
+          {taskId && (
+            <Col flex="none">
+              <div style={{ textAlign: 'right' }}>
+                <Text
+                  style={{
+                    color: '#3a4f6e',
+                    fontSize: '10px',
+                    display: 'block',
+                    marginBottom: '4px',
+                    letterSpacing: '0.8px',
+                    fontWeight: 700,
+                  }}
+                >
+                  IŞ BELGISI
+                </Text>
+                <Text copyable code style={{ color: '#4f8ef7', fontSize: '12px' }}>
+                  {taskId}
+                </Text>
+              </div>
+            </Col>
+          )}
+        </Row>
+
+        <Divider style={{ margin: 0, borderColor: '#1e2d45' }} />
+
+        {/* Result content */}
+        <div
+          style={{
+            background: '#0b1120',
+            border: '1px solid #1e2d45',
+            borderRadius: '10px',
+            padding: '20px',
+          }}
+        >
+          <Text
+            style={{
+              fontSize: '14px',
+              lineHeight: '1.9',
+              whiteSpace: 'pre-wrap',
+              color: '#cbd5e1',
+              display: 'block',
+            }}
+          >
+            {result}
+          </Text>
+        </div>
+
+        <Button
+          type="primary"
+          icon={<ReloadOutlined />}
+          onClick={onReset}
+          size="large"
+          block
+          style={{
+            height: '46px',
+            borderRadius: '8px',
+            background: 'linear-gradient(135deg, #4f8ef7, #7c3aed)',
+            border: 'none',
+            fontWeight: 600,
+            letterSpacing: '0.3px',
+          }}
+        >
+          Täze Barlag
+        </Button>
+      </Space>
+    </Card>
+  );
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
+function AppContent() {
   const [inputType, setInputType] = useState('text');
   const [originalText, setOriginalText] = useState('');
   const [suspectText, setSuspectText] = useState('');
   const [originalFile, setOriginalFile] = useState(null);
   const [suspectFile, setSuspectFile] = useState(null);
   const [result, setResult] = useState('');
+  const [resultStatus, setResultStatus] = useState(null); // 'success' | 'error'
   const [loading, setLoading] = useState(false);
   const [taskId, setTaskId] = useState(null);
-  const [checking, setChecking] = useState(false);
+  const intervalRef = useRef(null);
 
-  // Polling function to check result
-  const checkResult = async (id) => {
-    try {
-      console.log('Checking result for task:', id);
-      const response = await axios.get(`${API_URL}/result/${id}`);
-      console.log('Result response:', response.data);
-      
-      if (response.data.status === 'completed') {
-        setResult(response.data.message);
-        setChecking(false);
-        setLoading(false);
-        return true;
-      } else if (response.data.status === 'processing') {
-        // Still processing
-        return false;
-      } else {
-        // Not found or error
-        setResult(response.data.message || 'Netije tapylmady.');
-        setChecking(false);
-        setLoading(false);
-        return true;
-      }
-    } catch (error) {
-      console.error('Error checking result:', error);
-      setChecking(false);
-      setLoading(false);
-      return true; // Stop polling on error
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
-  };
+    setLoading(false);
+  }, []);
 
-  // Poll for results
-  const pollResults = async (id) => {
-    setChecking(true);
-    console.log('Starting to poll for task:', id);
-    
-    let attempts = 0;
-    const maxAttempts = 60; // 5 minutes with 5-second intervals
-
-    const pollInterval = setInterval(async () => {
-      attempts++;
-      console.log(`Polling attempt ${attempts}/${maxAttempts}`);
-      
-      const completed = await checkResult(id);
-
-      if (completed || attempts >= maxAttempts) {
-        console.log('Stopping poll:', completed ? 'completed' : 'max attempts reached');
-        clearInterval(pollInterval);
-        setChecking(false);
-        setLoading(false);
-        
-        if (attempts >= maxAttempts && !completed) {
-          setResult('Wagt möhleti doldy. Şu ID belgisi bilen soňra gaýtadan barlaşyp bilersiňiz: ' + id);
+  const checkResult = useCallback(
+    async (id) => {
+      try {
+        const response = await axios.get(`${API_URL}/result/${id}`);
+        if (response.data.status === 'completed') {
+          setResult(response.data.message);
+          setResultStatus('success');
+          stopPolling();
+          return true;
+        } else if (response.data.status === 'processing') {
+          return false;
+        } else {
+          setResult(response.data.message || 'Netije tapylmady.');
+          setResultStatus('error');
+          stopPolling();
+          return true;
         }
+      } catch {
+        setResult('Netijeleri almak başartmady. Gaýtadan synanyşyň.');
+        setResultStatus('error');
+        stopPolling();
+        return true;
       }
-    }, 5000); // Check every 5 seconds
-  };
+    },
+    [stopPolling]
+  );
+
+  const pollResults = useCallback(
+    (id) => {
+      let attempts = 0;
+      intervalRef.current = setInterval(async () => {
+        attempts++;
+        const done = await checkResult(id);
+        if (done || attempts >= MAX_POLL_ATTEMPTS) {
+          stopPolling();
+          if (!done) {
+            setResult(`Wagt möhleti doldy. Bu iş belgisin saklap, soňra barlaň: ${id}`);
+            setResultStatus('error');
+          }
+        }
+      }, POLL_INTERVAL_MS);
+    },
+    [checkResult, stopPolling]
+  );
 
   const handleSubmit = async () => {
     setLoading(true);
     setResult('');
+    setResultStatus(null);
     setTaskId(null);
-    setChecking(false);
+
+    const formData = new FormData();
+    if (inputType === 'text') {
+      formData.append('original_text', originalText);
+      formData.append('suspect_text', suspectText);
+    } else {
+      formData.append('original_file', originalFile);
+      formData.append('suspect_file', suspectFile);
+    }
 
     try {
-      const formData = new FormData();
-
-      if (inputType === 'text') {
-        if (!originalText || !suspectText) {
-          setResult('Iki teksti hem doldurmalysyňyz!');
-          setLoading(false);
-          return;
-        }
-        formData.append('original_text', originalText);
-        formData.append('suspect_text', suspectText);
-      } else {
-        if (!originalFile || !suspectFile) {
-          setResult('Iki faýly hem saýlamaly!');
-          setLoading(false);
-          return;
-        }
-        formData.append('original_file', originalFile);
-        formData.append('suspect_file', suspectFile);
-      }
-
-      console.log('Submitting plagiarism check to:', `${API_URL}/plagiarism-check/`);
-
-      const response = await axios.post(
-        `${API_URL}/plagiarism-check/`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-
-      console.log('Submission response:', response.data);
-
-      // Get task ID and start polling
+      const response = await axios.post(`${API_URL}/plagiarism-check/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       const newTaskId = response.data.task_id;
       setTaskId(newTaskId);
-      setResult(`Barlag geçirilýär...\n\nBarlag belgisi: ${newTaskId}\n\n${response.data.message || ''}`);
-      
-      // Start polling for results
-      await pollResults(newTaskId);
+      pollResults(newTaskId);
     } catch (error) {
-      console.error('Submission error:', error);
-      
-      // Show error details
       if (error.response) {
-        console.error('Error response:', error.response.data);
-        setResult(`Näsazlyk (${error.response.status}): ${JSON.stringify(error.response.data, null, 2)}`);
+        setResult(
+          `Error ${error.response.status}: ${error.response.data?.detail || JSON.stringify(error.response.data)}`
+        );
       } else if (error.request) {
-        console.error('No response received');
         setResult('Serwer bilen baglanyşyk ýok. Serweriň işleýändigini barlaň.');
       } else {
         setResult(`Näsazlyk: ${error.message}`);
       }
-      
+      setResultStatus('error');
       setLoading(false);
-      setChecking(false);
     }
   };
 
-  const originalFileProps = {
-    beforeUpload: (file) => {
-      setOriginalFile(file);
-      return false;
-    },
-    onRemove: () => {
-      setOriginalFile(null);
-    },
-    maxCount: 1,
-    accept: '.pdf,.docx,.txt',
+  const handleReset = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setResult('');
+    setResultStatus(null);
+    setTaskId(null);
+    setLoading(false);
+    setOriginalText('');
+    setSuspectText('');
+    setOriginalFile(null);
+    setSuspectFile(null);
   };
 
-  const suspectFileProps = {
-    beforeUpload: (file) => {
-      setSuspectFile(file);
-      return false;
-    },
-    onRemove: () => {
-      setSuspectFile(null);
-    },
-    maxCount: 1,
-    accept: '.pdf,.docx,.txt',
-  };
-
-  const getResultIcon = () => {
-    if (result.includes('Ýalňyşlyk') || result.includes('Error')) {
-      return <WarningOutlined style={{ fontSize: '48px', color: '#ff4d4f' }} />;
-    }
-    return <SafetyOutlined style={{ fontSize: '48px', color: '#52c41a' }} />;
-  };
-
-  const getResultType = () => {
-    if (result.includes('Ýalňyşlyk') || result.includes('Error')) {
-      return 'error';
-    }
-    return 'success';
-  };
+  const canSubmit =
+    (inputType === 'text' && originalText.trim() && suspectText.trim()) ||
+    (inputType === 'file' && originalFile && suspectFile);
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      <Header style={{ 
-        background: 'rgba(255, 255, 255, 0.95)', 
-        padding: '0 24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <Space>
-          <FileProtectOutlined style={{ fontSize: '28px', color: '#667eea' }} />
-          <Title level={3} style={{ margin: 0, color: '#667eea' }}>
-            Plagiat Barlagçy
-          </Title>
-        </Space>
-      </Header>
+    <Layout style={{ minHeight: '100vh', background: '#08101e' }}>
+      <AppHeader />
+      <Content style={{ padding: '40px 16px 60px' }}>
+        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+          {/* Hero */}
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #4f8ef720, #7c3aed20)',
+                border: '1px solid #4f8ef730',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}
+            >
+              <SafetyOutlined style={{ fontSize: '28px', color: '#4f8ef7' }} />
+            </div>
+            <Title level={2} style={{ color: '#e2e8f0', marginBottom: '8px' }}>
+              Plagiat Barlagy
+            </Title>
+            <Text style={{ color: '#4f6f94', fontSize: '15px' }}>
+              Iki resminamany deňeşdiriň we göçürilen mazmuny takyk kesgitläň.
+            </Text>
+          </div>
 
-      <Content style={{ padding: '24px 16px' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <Card 
-            style={{ 
-              marginBottom: '24px',
-              borderRadius: '16px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              background: 'rgba(255, 255, 255, 0.98)'
-            }}
-          >
-            <Row gutter={[16, 16]} align="middle">
-              <Col xs={24} sm={24} md={8} style={{ textAlign: 'center' }}>
-                <FileTextOutlined style={{ fontSize: '64px', color: '#667eea' }} />
-              </Col>
-              <Col xs={24} sm={24} md={16}>
-                <Title level={2} style={{ marginBottom: '8px', color: '#1f1f1f' }}>
-                  Hoş geldiňiz!
-                </Title>
-                <Paragraph style={{ fontSize: '16px', color: '#666', marginBottom: 0 }}>
-                  Tekst ýazyň ýa-da faýl saýlaň, plagiat barlagyny başlaň.
-                  Ulgam iki teksti deňeşdirip, jikme-jik netije çykarar.
-                </Paragraph>
-              </Col>
-            </Row>
-          </Card>
-
+          {/* Main card */}
           <Card
             style={{
               borderRadius: '16px',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-              background: 'rgba(255, 255, 255, 0.98)'
+              background: '#111827',
+              border: '1px solid #1e2d45',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
             }}
+            styles={{ body: { padding: '28px' } }}
           >
-            <Space direction="vertical" size="large" style={{ width: '100%' }}>
-              <div style={{ textAlign: 'center' }}>
+            <Space direction="vertical" size={24} style={{ width: '100%' }}>
+              {/* Mode toggle */}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <Segmented
                   size="large"
                   value={inputType}
                   onChange={setInputType}
+                  disabled={loading}
                   options={[
                     {
-                      label: <span><FileTextOutlined /> Tekst ýazyň</span>,
-                      value: 'text'
+                      label: (
+                        <Space>
+                          <FileTextOutlined />
+                          Tekst Ýaz
+                        </Space>
+                      ),
+                      value: 'text',
                     },
                     {
-                      label: <span><UploadOutlined /> Faýl saýlaň</span>,
-                      value: 'file'
+                      label: (
+                        <Space>
+                          <UploadOutlined />
+                          Faýl Ýükle
+                        </Space>
+                      ),
+                      value: 'file',
                     },
                   ]}
-                  style={{ padding: '4px' }}
                 />
               </div>
 
-              <Divider />
+              <Divider style={{ margin: 0, borderColor: '#1e2d45' }} />
 
+              {/* Input panels */}
               {inputType === 'text' ? (
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={12}>
-                    <Card 
-                      size="small" 
-                      title={
-                        <Space>
-                          <FileTextOutlined style={{ color: '#52c41a' }} />
-                          <Text strong>Asyl tekst</Text>
-                        </Space>
-                      }
-                      style={{ height: '100%' }}
-                    >
-                      <TextArea
-                        value={originalText}
-                        onChange={(e) => setOriginalText(e.target.value)}
-                        placeholder="Asyl tekstiňizi şu ýere ýazyň..."
-                        rows={8}
-                        showCount
-                        maxLength={5000}
-                        style={{ fontSize: '15px' }}
-                      />
-                    </Card>
-                  </Col>
-
-                  <Col xs={24} lg={12}>
-                    <Card 
-                      size="small" 
-                      title={
-                        <Space>
-                          <FileTextOutlined style={{ color: '#faad14' }} />
-                          <Text strong>Barlanýan tekst</Text>
-                        </Space>
-                      }
-                      style={{ height: '100%' }}
-                    >
-                      <TextArea
-                        value={suspectText}
-                        onChange={(e) => setSuspectText(e.target.value)}
-                        placeholder="Barlanýan tekstiňizi şu ýere ýazyň..."
-                        rows={8}
-                        showCount
-                        maxLength={5000}
-                        style={{ fontSize: '15px' }}
-                      />
-                    </Card>
-                  </Col>
-                </Row>
+                <TextInputPanel
+                  originalText={originalText}
+                  setOriginalText={setOriginalText}
+                  suspectText={suspectText}
+                  setSuspectText={setSuspectText}
+                />
               ) : (
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} lg={12}>
-                    <Card 
-                      size="small"
-                      title={
-                        <Space>
-                          <FileTextOutlined style={{ color: '#52c41a' }} />
-                          <Text strong>Asyl faýl</Text>
-                        </Space>
-                      }
-                    >
-                      <Upload {...originalFileProps} listType="picture-card">
-                        <div style={{ padding: '20px', textAlign: 'center' }}>
-                          <UploadOutlined style={{ fontSize: '32px', color: '#52c41a' }} />
-                          <div style={{ marginTop: 8 }}>Asyl faýly saýlaň</div>
-
-                          <Text type="secondary" style={{ fontSize: '12px' }}>
-                            PDF, DOCX, TXT
-                          </Text>
-                        </div>
-                      </Upload>
-                    </Card>
-                  </Col>
-
-                  <Col xs={24} lg={12}>
-                    <Card 
-                      size="small"
-                      title={
-                        <Space>
-                          <FileTextOutlined style={{ color: '#faad14' }} />
-                          <Text strong>Barlanylýan faýl</Text>
-                        </Space>
-                      }
-                    >
-                      <Upload {...suspectFileProps} listType="picture-card">
-                        <div style={{ padding: '20px', textAlign: 'center' }}>
-                          <UploadOutlined style={{ fontSize: '32px', color: '#faad14' }} />
-                          <div style={{ marginTop: 8 }}>Barlanylýan faýly saýlaň</div>
-                          <Text type="secondary" style={{ fontSize: '12px' }}>
-                            PDF, DOCX, TXT
-                          </Text>
-                        </div>
-                      </Upload>
-                    </Card>
-                  </Col>
-                </Row>
+                <FileInputPanel
+                  originalFile={originalFile}
+                  setOriginalFile={setOriginalFile}
+                  suspectFile={suspectFile}
+                  setSuspectFile={setSuspectFile}
+                />
               )}
 
-              <Button
-                type="primary"
-                size="large"
-                icon={<CheckCircleOutlined />}
-                onClick={handleSubmit}
-                loading={loading}
-                block
-                disabled={
-                  (inputType === 'text' && (!originalText || !suspectText)) ||
-                  (inputType === 'file' && (!originalFile || !suspectFile))
-                }
-                style={{
-                  height: '56px',
-                  fontSize: '18px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  border: 'none',
-                  fontWeight: 'bold',
-                  marginTop: '16px'
-                }}
-              >
-                {loading ? 'Barlag geçirilýär...' : 'Plagiat barlagyny başlaň'}
-              </Button>
-
-              {loading && (
-                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#f6f8fa', padding: '30px' }}>
-                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    <Spin size="large" tip="Barlag geçirilýär..." />
-                    <Progress percent={75} status="active" strokeColor={{ from: '#667eea', to: '#764ba2' }} />
-                    <Text strong style={{ fontSize: '16px', color: '#667eea' }}>
-                      Tekst seljermesi amala aşyrylýar...
-                    </Text>
-                    {taskId && (
-                      <Card style={{ background: 'white', marginTop: '16px' }}>
-                        <Row gutter={16}>
-                          <Col span={24}>
-                            <Text type="secondary" style={{ fontSize: '14px' }}>Barlag belgisi:</Text>
-                          </Col>
-                          <Col span={24}>
-                            <Text code style={{ fontSize: '16px', fontWeight: 'bold', color: '#667eea' }}>
-                              {taskId}
-                            </Text>
-                          </Col>
-                        </Row>
-                      </Card>
-                    )}
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
-                      Sabyr ediň... Netije az wagtda taýýar bolar
-                    </Text>
-                  </Space>
-                </Card>
-              )}
-
-              {checking && !loading && (
-                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#e6f7ff', padding: '20px' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Spin size="small" />
-                    <Text style={{ fontSize: '14px', color: '#1890ff' }}>
-                      Netijeler barlanýar... (Öz-özünden täzelenýär)
-                    </Text>
-                    {taskId && (
-                      <Button
-                        type="link"
-                        onClick={() => checkResult(taskId)}
-                        size="small"
-                      >
-                        Gaýtadan barla
-                      </Button>
-                    )}
-                  </Space>
-                </Card>
-              )}
-
-              {taskId && !result && !loading && !checking && (
-                <Card style={{ textAlign: 'center', borderRadius: '12px', background: '#fff7e6', padding: '20px' }}>
-                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Text style={{ fontSize: '14px' }}>
-                      Barlag belgisi: <Text code>{taskId}</Text>
-                    </Text>
-                    <Button
-                      type="primary"
-                      onClick={() => {
-                        setChecking(true);
-                        checkResult(taskId);
-                      }}
-                    >
-                      Netijäni gör
-                    </Button>
-                  </Space>
-                </Card>
-              )}
-
-              {result && !loading && (
-                <Card
+              {/* Submit button */}
+              {!result && (
+                <Button
+                  type="primary"
+                  size="large"
+                  icon={loading ? null : <SafetyOutlined />}
+                  onClick={handleSubmit}
+                  loading={loading}
+                  disabled={!canSubmit || loading}
+                  block
                   style={{
-                    borderRadius: '16px',
-                    background: '#f6ffed',
-                    border: '2px solid #52c41a',
-                    padding: '24px'
+                    height: '52px',
+                    fontSize: '16px',
+                    borderRadius: '10px',
+                    background:
+                      canSubmit && !loading
+                        ? 'linear-gradient(135deg, #4f8ef7, #7c3aed)'
+                        : undefined,
+                    border: 'none',
+                    fontWeight: 600,
+                    letterSpacing: '0.4px',
                   }}
                 >
-                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    {/* Task ID Display */}
-                    {taskId && (
-                      <Card style={{ background: 'white', borderRadius: '12px' }}>
-                        <Row gutter={16}>
-                          <Col xs={24} sm={8}>
-                            <Text type="secondary" style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                              Barlag belgisi:
-                            </Text>
-                          </Col>
-                          <Col xs={24} sm={16}>
-                            <Text code copyable style={{ fontSize: '16px', color: '#667eea', fontWeight: 'bold' }}>
-                              {taskId}
-                            </Text>
-                          </Col>
-                        </Row>
-                      </Card>
-                    )}
+                  {loading ? 'Seljerilyär...' : 'Plagiat Barlagyny Başlaň'}
+                </Button>
+              )}
 
-                    {/* Header */}
-                    <Row gutter={[16, 16]} align="middle">
-                      <Col xs={24} sm={4} style={{ textAlign: 'center' }}>
-                        <SafetyOutlined style={{ fontSize: '48px', color: '#52c41a' }} />
-                      </Col>
-                      <Col xs={24} sm={20}>
-                        <Title level={3} style={{ margin: 0, marginBottom: '8px', color: '#1f1f1f' }}>
-                          Barlag Tamamlandy ✓
-                        </Title>
-                        <Tag color="green" style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                          ÜSTÜNLIKLI TAMAMLANDY
-                        </Tag>
-                      </Col>
-                    </Row>
-                    
-                    <Divider style={{ margin: '16px 0' }} />
-                    
-                    {/* Result Content */}
-                    <Card style={{ background: 'white', borderRadius: '12px', border: '1px solid #52c41a' }}>
-                      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                        <Title level={4} style={{ margin: 0, color: '#1f1f1f' }}>
-                          📋 Seljerme Netijeleri:
-                        </Title>
-                        <Text style={{ fontSize: '15px', lineHeight: '1.8', whiteSpace: 'pre-wrap', color: '#333' }}>
-                          {result}
-                        </Text>
-                      </Space>
-                    </Card>
+              {/* Loading state */}
+              {loading && <LoadingPanel taskId={taskId} />}
 
-                    {/* Action Buttons */}
-                    <Space style={{ width: '100%' }} direction="vertical">
-                      <Button 
-                        type="primary" 
-                        block 
-                        onClick={() => window.location.reload()}
-                        style={{
-                          height: '44px',
-                          fontSize: '16px',
-                          borderRadius: '8px',
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          border: 'none'
-                        }}
-                      >
-                        Täze Barlag Geçir
-                      </Button>
-                    </Space>
-                  </Space>
-                </Card>
+              {/* Result */}
+              {result && !loading && (
+                <ResultPanel
+                  result={result}
+                  taskId={taskId}
+                  resultStatus={resultStatus}
+                  onReset={handleReset}
+                />
               )}
             </Space>
           </Card>
+
+          {/* Footer */}
+          <div style={{ textAlign: 'center', marginTop: '28px' }}>
+            <Text style={{ color: '#1e2d45', fontSize: '12px' }}>
+              CopyDetect · Plagiat Barlagy Ulgamy
+            </Text>
+          </div>
         </div>
       </Content>
     </Layout>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ConfigProvider
+      theme={{
+        algorithm: antTheme.darkAlgorithm,
+        token: {
+          colorPrimary: '#4f8ef7',
+          colorBgContainer: '#111827',
+          colorBgElevated: '#1a2535',
+          borderRadius: 8,
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif',
+        },
+        components: {
+          Segmented: {
+            itemSelectedBg: '#1d3a6e',
+            itemSelectedColor: '#4f8ef7',
+          },
+          Card: {
+            colorBorderSecondary: '#1e2d45',
+          },
+        },
+      }}
+    >
+      <AntApp>
+        <AppContent />
+      </AntApp>
+    </ConfigProvider>
+  );
+}
