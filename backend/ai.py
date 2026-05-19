@@ -15,9 +15,30 @@ _PROXY_VARS = [
     'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy',
 ]
 
+_SKIP_KEYWORDS = {"tts", "image", "robotics", "deep-research", "lyria",
+                  "banana", "computer-use", "customtools", "clip"}
+
+_client: genai.Client | None = None
+available_models: list[str] = []
+
+
+def init_models(api_key: str) -> None:
+    global _client, available_models
+    _client = genai.Client(api_key=api_key)
+    try:
+        available_models = [
+            m.name.replace("models/", "")
+            for m in _client.models.list()
+            if "generateContent" in (m.supported_actions or [])
+            and not any(kw in m.name for kw in _SKIP_KEYWORDS)
+        ]
+        logger.info(f"Available models ({len(available_models)}): {available_models}")
+    except Exception as e:
+        logger.error(f"Model discovery failed: {e}, using fallback")
+        available_models = [settings.AI_MODEL]
+
 
 def _clear_proxies() -> dict:
-    """Remove proxy env vars and return their original values."""
     saved = {}
     for var in _PROXY_VARS:
         if var in os.environ:
@@ -90,50 +111,50 @@ def check_authorship(original_text: str, suspect_text: str) -> str:
     prompt = build_authorship_prompt(original_text, suspect_text)
     saved_proxies = _clear_proxies()
 
-    for attempt in range(settings.MAX_RETRIES):
-        try:
-            client = genai.Client(api_key=settings.API_KEY)
+    models = available_models or [settings.AI_MODEL]
 
-            response = client.models.generate_content(
-                model=settings.AI_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.4,
-                    top_p=0.9,
-                    max_output_tokens=8192,
-                ),
-            )
+    for model in models:
+        for attempt in range(settings.MAX_RETRIES):
+            try:
+                response = _client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.4,
+                        top_p=0.9,
+                        max_output_tokens=8192,
+                    ),
+                )
 
-            result = response.text or ""
-            result = re.sub(r'```[a-z]*\n?', '', result)
-            result = re.sub(r'```', '', result)
-            result = re.sub(r'\*\*\*', '', result)
-            result = result.strip()
+                result = response.text or ""
+                result = re.sub(r'```[a-z]*\n?', '', result)
+                result = re.sub(r'```', '', result)
+                result = re.sub(r'\*\*\*', '', result)
+                result = result.strip()
 
-            if len(result) < 100:
-                logger.warning(f"Response too short (attempt {attempt + 1}), retrying...")
-                if attempt < settings.MAX_RETRIES - 1:
-                    time.sleep(2)
+                if len(result) < 100:
+                    logger.warning(f"Response too short [{model}] (attempt {attempt + 1}), retrying...")
+                    if attempt < settings.MAX_RETRIES - 1:
+                        time.sleep(2)
                     continue
 
-            logger.info(f"Got response from {settings.AI_MODEL} ({len(result)} chars)")
-            _restore_proxies(saved_proxies)
-            return result
-
-        except Exception as e:
-            error_str = str(e)
-            logger.warning(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} failed: {error_str[:150]}")
-
-            if "429" in error_str or "quota" in error_str.lower() or "rate" in error_str.lower():
+                logger.info(f"Got response from {model} ({len(result)} chars)")
                 _restore_proxies(saved_proxies)
-                return settings.MESSAGES["system_busy"]
+                return result
 
-            if attempt < settings.MAX_RETRIES - 1:
-                wait = settings.RETRY_DELAYS[attempt]
-                logger.info(f"Waiting {wait}s before retry...")
-                time.sleep(wait)
-            else:
-                logger.error("All retry attempts exhausted")
+            except Exception as e:
+                error_str = str(e)
+                if "429" in error_str or "quota" in error_str.lower() or "resource_exhausted" in error_str.lower():
+                    logger.warning(f"{model} rate-limited, trying next model...")
+                    break  # skip to next model
+
+                logger.warning(f"Attempt {attempt + 1}/{settings.MAX_RETRIES} [{model}] failed: {error_str[:150]}")
+                if attempt < settings.MAX_RETRIES - 1:
+                    wait = settings.RETRY_DELAYS[attempt]
+                    logger.info(f"Waiting {wait}s before retry...")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"All retry attempts exhausted for {model}")
 
     _restore_proxies(saved_proxies)
     return settings.MESSAGES["system_unavailable"]

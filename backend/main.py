@@ -8,7 +8,7 @@ from typing import Dict
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from ai import check_authorship_async
+from ai import check_authorship_async, init_models
 from config import settings
 
 logging.basicConfig(
@@ -86,7 +86,8 @@ async def cleanup_old_tasks():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"CopyDetect API starting — model: {settings.AI_MODEL}")
+    logger.info("CopyDetect API starting — discovering models...")
+    init_models(settings.API_KEY)
     yield
     logger.info("CopyDetect API shutting down")
 
