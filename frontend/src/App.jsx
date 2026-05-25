@@ -8,7 +8,6 @@ import {
   Input,
   Upload,
   Button,
-  Spin,
   Typography,
   Space,
   Row,
@@ -44,10 +43,11 @@ const { Title, Text } = Typography;
 function AppHeader() {
   return (
     <Header
+      className="header-glow"
       style={{
         background: '#0b1120',
         borderBottom: '1px solid #1e2d45',
-        padding: '0 32px',
+        padding: '0 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -58,12 +58,20 @@ function AppHeader() {
       }}
     >
       <Space size={10}>
-        <FileProtectOutlined style={{ fontSize: '22px', color: '#4f8ef7' }} />
+        <FileProtectOutlined
+          className="logo-pulse"
+          style={{ fontSize: '22px', color: '#4f8ef7' }}
+        />
         <Text
           strong
-          style={{ fontSize: '17px', color: '#e2e8f0', letterSpacing: '0.4px' }}
+          style={{
+            fontSize: '16px',
+            color: '#e2e8f0',
+            letterSpacing: '0.3px',
+            whiteSpace: 'nowrap',
+          }}
         >
-          CopyDetect
+          Edebiýat Ogurlyk Barlaýjy
         </Text>
       </Space>
       <Tag
@@ -124,6 +132,7 @@ function UploadArea({ label, accentColor, file, onSet }) {
           </Text>
         </Space>
       }
+      className="glow-card"
       styles={{
         body: { padding: '16px' },
         header: { borderBottom: '1px solid #1e2d45', minHeight: '44px' },
@@ -281,38 +290,124 @@ function FileInputPanel({ originalFile, setOriginalFile, suspectFile, setSuspect
 
 // ─── Loading Panel ────────────────────────────────────────────────────────────
 
+// A single mini "document" being scanned (skeleton lines under a scan beam)
+function ScanDocument({ label, accentColor }) {
+  const bars = ['92%', '76%', '88%', '60%', '83%', '70%', '95%'];
+  return (
+    <div
+      style={{
+        flex: 1,
+        background: '#0b1120',
+        border: '1px solid #1e2d45',
+        borderRadius: '10px',
+        padding: '16px 14px',
+      }}
+    >
+      <Space size={6} style={{ marginBottom: '14px' }}>
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: accentColor,
+            display: 'inline-block',
+          }}
+        />
+        <Text
+          style={{
+            color: '#4f6f94',
+            fontSize: '9px',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+          }}
+        >
+          {label}
+        </Text>
+      </Space>
+      {bars.map((w, i) => (
+        <div
+          key={i}
+          className="skeleton-bar"
+          style={{
+            height: 8,
+            width: w,
+            marginBottom: 10,
+            animationDelay: `${i * 0.12}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function LoadingPanel({ taskId }) {
+  // Live, ever-climbing progress that eases toward ~95% until the result lands.
+  const [pct, setPct] = useState(6);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+      setPct((p) => (p >= 95 ? 95 : p + (95 - p) * 0.045));
+    }, 350);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <Card
+      className="fade-in"
       style={{
         borderRadius: '12px',
         background: '#0d1626',
         border: '1px solid #1e2d45',
         textAlign: 'center',
       }}
-      styles={{ body: { padding: '40px 24px' } }}
+      styles={{ body: { padding: '36px 24px' } }}
     >
-      <Space direction="vertical" size={20} style={{ width: '100%' }}>
-        <Spin size="large" />
+      <Space direction="vertical" size={22} style={{ width: '100%' }}>
         <div>
           <Text
             strong
             style={{ fontSize: '16px', color: '#e2e8f0', display: 'block', marginBottom: '4px' }}
           >
-            Resminamalar seljerilyär...
+            Resminamalar deňeşdirilýär...
           </Text>
           <Text style={{ color: '#4f6f94', fontSize: '13px' }}>
-            Bu birnäçe minut alyp biler
+            Tekstler jikme-jik seljerilýär — bu birnäçe minut alyp biler
           </Text>
         </div>
-        <Progress
-          percent={75}
-          status="active"
-          strokeColor={{ from: '#4f8ef7', to: '#7c3aed' }}
-          showInfo={false}
-          strokeWidth={5}
-          style={{ maxWidth: '380px', margin: '0 auto' }}
-        />
+
+        {/* Two documents under a sweeping scan beam */}
+        <div
+          className="scan-doc"
+          style={{
+            display: 'flex',
+            gap: '14px',
+            maxWidth: '440px',
+            margin: '0 auto',
+            padding: '4px',
+          }}
+        >
+          <ScanDocument label="Asyl" accentColor="#22c55e" />
+          <ScanDocument label="Barlanýan" accentColor="#f59e0b" />
+          <div className="scan-line" />
+        </div>
+
+        <div style={{ maxWidth: '440px', margin: '0 auto', width: '100%' }}>
+          <Progress
+            percent={Math.round(pct)}
+            status="active"
+            strokeColor={{ from: '#4f8ef7', to: '#7c3aed' }}
+            trailColor="#1a2740"
+            strokeWidth={6}
+            format={(p) => (
+              <Text style={{ color: '#4f8ef7', fontSize: '12px', fontWeight: 600 }}>{p}%</Text>
+            )}
+          />
+        </div>
+
         {taskId && (
           <div
             style={{
@@ -331,10 +426,11 @@ function LoadingPanel({ taskId }) {
             </Text>
           </div>
         )}
+
         <Space>
           <ClockCircleOutlined style={{ color: '#3a4f6e' }} />
           <Text style={{ color: '#3a4f6e', fontSize: '12px' }}>
-            Netijeler awtomatiki usulda peýda bolar
+            {elapsed}s geçdi · Netijeler awtomatiki peýda bolar
           </Text>
         </Space>
       </Space>
@@ -350,6 +446,7 @@ function ResultPanel({ result, taskId, resultStatus, onReset }) {
 
   return (
     <Card
+      className="fade-in-up"
       style={{
         borderRadius: '12px',
         background: '#0d1626',
@@ -586,13 +683,19 @@ function AppContent() {
     (inputType === 'file' && originalFile && suspectFile);
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#08101e' }}>
+    <Layout
+      style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(90% 55% at 50% -10%, #0e1b33 0%, #08101e 58%)',
+      }}
+    >
       <AppHeader />
       <Content style={{ padding: '40px 16px 60px' }}>
         <div style={{ maxWidth: '960px', margin: '0 auto' }}>
           {/* Hero */}
-          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div className="fade-in-up" style={{ textAlign: 'center', marginBottom: '40px' }}>
             <div
+              className="halo-pulse"
               style={{
                 width: 64,
                 height: 64,
@@ -607,7 +710,7 @@ function AppContent() {
             >
               <SafetyOutlined style={{ fontSize: '28px', color: '#4f8ef7' }} />
             </div>
-            <Title level={2} style={{ color: '#e2e8f0', marginBottom: '8px' }}>
+            <Title level={2} className="gradient-text" style={{ marginBottom: '8px' }}>
               Plagiat Barlagy
             </Title>
             <Text style={{ color: '#4f6f94', fontSize: '15px' }}>
@@ -617,6 +720,7 @@ function AppContent() {
 
           {/* Main card */}
           <Card
+            className="fade-in-up delay-1"
             style={{
               borderRadius: '16px',
               background: '#111827',
@@ -678,6 +782,7 @@ function AppContent() {
               {/* Submit button */}
               {!result && (
                 <Button
+                  className="shine-btn"
                   type="primary"
                   size="large"
                   icon={loading ? null : <SafetyOutlined />}
@@ -720,7 +825,7 @@ function AppContent() {
           {/* Footer */}
           <div style={{ textAlign: 'center', marginTop: '28px' }}>
             <Text style={{ color: '#1e2d45', fontSize: '12px' }}>
-              CopyDetect · Plagiat Barlagy Ulgamy
+              Edebiýat Ogurlyk Barlaýjy · Plagiat Barlagy Ulgamy
             </Text>
           </div>
         </div>

@@ -42,3 +42,147 @@ body {
 .ant-upload-wrapper .ant-upload:hover > div {
   border-color: #4f8ef7 !important;
 }
+
+/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Drives gradient text + animated header glow line */
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Scan line sweeping down the document graphic */
+@keyframes scanMove {
+  0%   { top: -12%; opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Logo gentle float */
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+
+/* Skeleton bar shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Hero icon halo pulse */
+@keyframes haloPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79,142,247,0.30); }
+  50%      { box-shadow: 0 0 26px 6px rgba(124,58,237,0.22); }
+}
+
+/* Button shine sweep */
+@keyframes shine {
+  from { left: -130%; }
+  to   { left: 130%; }
+}
+
+/* ─── Utility classes ───────────────────────────────────────────────────────── */
+
+.fade-in-up { animation: fadeInUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.fade-in    { animation: fadeIn 0.6s ease both; }
+.delay-1    { animation-delay: 0.08s; }
+.delay-2    { animation-delay: 0.18s; }
+.delay-3    { animation-delay: 0.28s; }
+
+/* Animated gradient text (hero title) */
+.gradient-text {
+  background: linear-gradient(90deg, #4f8ef7, #7c3aed, #4f8ef7);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientShift 5s linear infinite;
+}
+
+/* Animated glow line under the header */
+.header-glow::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #4f8ef7, #7c3aed, transparent);
+  background-size: 220% auto;
+  animation: gradientShift 6s linear infinite;
+}
+
+.logo-pulse { animation: floatY 3.6s ease-in-out infinite; }
+.halo-pulse { animation: haloPulse 3.2s ease-in-out infinite; }
+
+/* Card hover lift + glow */
+.glow-card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.glow-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(79,142,247,0.45) !important;
+  box-shadow: 0 14px 36px rgba(79,142,247,0.14);
+}
+
+/* Submit button shine on hover */
+.shine-btn { position: relative; overflow: hidden; }
+.shine-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -130%;
+  width: 55%; height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+.shine-btn:hover::after { animation: shine 0.9s ease; }
+
+/* ─── Document-scanning loading effect ──────────────────────────────────────── */
+
+.scan-doc { position: relative; overflow: hidden; }
+
+.scan-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 46px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(79,142,247,0.16),
+    rgba(79,142,247,0.5),
+    rgba(79,142,247,0.16),
+    transparent
+  );
+  filter: blur(1px);
+  animation: scanMove 2.3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.skeleton-bar {
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1a2740 25%, #2a3c5c 50%, #1a2740 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.7s linear infinite;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
